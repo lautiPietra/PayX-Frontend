@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { solicitarResetPassword } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
+import { IconMail, IconArrowLeft } from '../components/icons/Icons';
 import './Recuperar.css';
 
 function OlvidePassword() {
@@ -72,7 +73,7 @@ function OlvidePassword() {
                 <form onSubmit={handleSubmit} noValidate>
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">✉️</span>
+                            <IconMail className="input-icon" />
                             <input
                                 type="email"
                                 placeholder="Correo electronico"
@@ -93,7 +94,7 @@ function OlvidePassword() {
 
                 <div className="recuperar-volver">
                     <Link to="/login">
-                        <span className="flecha-volver">←</span> Volver al inicio de sesion
+                        <span className="flecha-volver"><IconArrowLeft size={16} /></span> Volver al inicio de sesion
                     </Link>
                 </div>
             </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { listarUsuarios, buscarUsuarios, cambiarRol, darDeBaja, reactivarUsuario, obtenerLogs } from '../services/adminService';
 import { esAdmin } from '../services/authService';
 import Navbar from '../components/Navbar';
+import { IconUsers, IconFileText, IconBell, IconSearch, IconRefreshCw, IconUserX, IconCheck, IconAlertTriangle } from '../components/icons/Icons';
 import './AdminPanel.css';
 
 function AdminPanel() {
@@ -22,7 +23,7 @@ function AdminPanel() {
 
     useEffect(() => {
         if (!esAdmin()) {
-            navigate('/perfil');
+            navigate('/inicio');
             return;
         }
         cargarDatos();
@@ -131,19 +132,19 @@ function AdminPanel() {
                         className={`admin-tab ${tabActiva === 'usuarios' ? 'activo' : ''}`}
                         onClick={() => setTabActiva('usuarios')}
                     >
-                        👥 Usuarios ({usuarios.length})
+                        <IconUsers size={16} /> Usuarios ({usuarios.length})
                     </button>
                     <button
                         className={`admin-tab ${tabActiva === 'auditoria' ? 'activo' : ''}`}
                         onClick={() => setTabActiva('auditoria')}
                     >
-                        📋 Auditoria ({logs.length})
+                        <IconFileText size={16} /> Auditoria ({logs.length})
                     </button>
                     <button
                         className={`admin-tab ${tabActiva === 'plantillas' ? 'activo' : ''}`}
                         onClick={() => navigate('/admin/plantillas')}
                     >
-                        🔔 Plantillas de Notificación
+                        <IconBell size={16} /> Plantillas de Notificación
                     </button>
                 </div>
 
@@ -153,7 +154,7 @@ function AdminPanel() {
 
                         {/* Buscador */}
                         <div className="admin-buscador">
-                            <span className="admin-buscador-icon">🔍</span>
+                            <IconSearch className="admin-buscador-icon" size={16} />
                             <input
                                 type="text"
                                 placeholder="Buscar por nombre, email o username..."
@@ -282,8 +283,8 @@ function AdminPanel() {
                                 {logs.map((log) => (
                                     <div key={log.id} className="admin-log-item">
                                         <div className="admin-log-icono">
-                                            {log.accion === 'CAMBIO_ROL' ? '🔄' :
-                                             log.accion === 'BAJA_LOGICA' ? '🚫' : '✅'}
+                                            {log.accion === 'CAMBIO_ROL' ? <IconRefreshCw size={17} /> :
+                                             log.accion === 'BAJA_LOGICA' ? <IconUserX size={17} /> : <IconCheck size={17} />}
                                         </div>
                                         <div className="admin-log-contenido">
                                             <p className="admin-log-accion">
@@ -307,7 +308,7 @@ function AdminPanel() {
             {modalBaja && (
                 <div className="admin-modal-overlay" onClick={() => setModalBaja(null)}>
                     <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="admin-modal-icono">⚠️</div>
+                        <div className="admin-modal-icono"><IconAlertTriangle size={26} /></div>
                         <h2 className="admin-modal-titulo">Confirmar baja de usuario</h2>
                         <p className="admin-modal-texto">
                             ¿Estas seguro de dar de baja a <strong>{modalBaja.nombreCompleto}</strong> ({modalBaja.email})?

@@ -1,4 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import Splash from './pages/Splash';
+import Home from './pages/Home';
 import Registro from './pages/Registro';
 import Verificacion from './pages/Verificacion';
 import Login from './pages/Login';
@@ -19,14 +21,14 @@ function RutaPrivada({ children }) {
 
 function RutaAdmin({ children }) {
     if (!estaLogueado()) return <Navigate to="/login" />;
-    if (!esAdmin()) return <Navigate to="/perfil" />;
+    if (!esAdmin()) return <Navigate to="/inicio" />;
     return children;
 }
 
 function App() {
     return (
         <Routes>
-            <Route path="/" element={<Navigate to="/login" />} />
+            <Route path="/" element={<Splash />} />
             <Route path="/login" element={<Login />} />
             <Route path="/registro" element={<Registro />} />
             <Route path="/verificacion" element={<Verificacion />} />
@@ -34,6 +36,7 @@ function App() {
             <Route path="/verificar-codigo-reset" element={<VerificarCodigoReset />} />
             <Route path="/nueva-password" element={<NuevaPassword />} />
 
+            <Route path="/inicio" element={<RutaPrivada><Home /></RutaPrivada>} />
             <Route path="/perfil" element={<RutaPrivada><Perfil /></RutaPrivada>} />
             <Route path="/admin" element={<RutaAdmin><AdminPanel /></RutaAdmin>} />
             <Route path="/admin/plantillas/nueva" element={<RutaAdmin><AltaPlantilla /></RutaAdmin>} />

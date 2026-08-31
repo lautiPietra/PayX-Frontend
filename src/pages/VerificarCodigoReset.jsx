@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate, Link} from 'react-router-dom';
 import { validarCodigoReset, solicitarResetPassword } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
+import { IconArrowLeft } from '../components/icons/Icons';
 import './Recuperar.css';
 
 function VerificarCodigoReset() {
@@ -160,7 +161,7 @@ function VerificarCodigoReset() {
 
                 <div className="recuperar-volver">
                     <Link to="/login">
-                        <span className="flecha-volver">←</span> Volver al inicio de sesion
+                        <span className="flecha-volver"><IconArrowLeft size={16} /></span> Volver al inicio de sesion
                     </Link>
                 </div>
             </div>

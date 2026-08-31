@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { resetearPassword } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
+import { IconLock, IconEye, IconEyeOff } from '../components/icons/Icons';
 import './Recuperar.css';
 
 function NuevaPassword() {
@@ -96,7 +97,7 @@ function NuevaPassword() {
                 <form onSubmit={handleSubmit} noValidate>
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">🔒</span>
+                            <IconLock className="input-icon" />
                             <input
                                 type={mostrarPassword ? 'text' : 'password'}
                                 className="password-input"
@@ -112,7 +113,7 @@ function NuevaPassword() {
                                 className="password-toggle"
                                 onClick={() => setMostrarPassword(!mostrarPassword)}
                             >
-                                {mostrarPassword ? '🙈' : '👁️'}
+                                {mostrarPassword ? <IconEyeOff /> : <IconEye />}
                             </button>
                         </div>
                         {errores.password && <p className="campo-error">{errores.password}</p>}
@@ -120,7 +121,7 @@ function NuevaPassword() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">🔒</span>
+                            <IconLock className="input-icon" />
                             <input
                                 type={mostrarPassword ? 'text' : 'password'}
                                 className="password-input"

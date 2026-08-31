@@ -1,63 +1,70 @@
 .baja-container {
-    min-height: 100vh;
-    background-color: #f5f5f5;
-    display: flex;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.plantillas-volver-admin {
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 2rem;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 0;
+    margin-bottom: 16px;
+    font-family: inherit;
+    transition: color 0.2s;
+}
+
+.plantillas-volver-admin:hover {
+    color: #1a1a1a;
 }
 
 .baja-card {
     background: white;
-    border-radius: 12px;
-    width: 100%;
-    max-width: 480px;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     overflow: hidden;
 }
 
 .baja-header {
     text-align: center;
-    background: #111;
-    padding: 1.5rem;
+    padding: 24px 24px 0;
 }
 
-.payx-logo {
-    color: white;
-    font-size: 2rem;
-    font-weight: 900;
-    margin: 0;
-    letter-spacing: -1px;
+.baja-titulo {
+    font-size: 21px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 4px;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
 }
-
-.payx-logo span { color: #f97316; }
 
 .baja-subtitulo {
-    color: #aaa;
-    font-size: 0.85rem;
-    margin: 0.3rem 0 0 0;
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0;
 }
 
 .baja-body {
-    padding: 1.5rem 2rem 2rem 2rem;
+    padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 1.2rem;
 }
 
-.link-volver {
-    color: #f97316;
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.link-volver:hover { text-decoration: underline; }
-
 .plantilla-info-card {
-    border: 1px solid #eee;
-    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     padding: 1rem;
-    background: #fafafa;
+    background: #f9fafb;
 }
 
 .plantilla-info-top {
@@ -75,18 +82,18 @@
 }
 
 .badge-estado.activa {
-    background: #f0fdf4;
-    color: #16a34a;
+    background: #d1fae5;
+    color: #065f46;
 }
 
 .badge-estado.inactiva {
-    background: #fef2f2;
-    color: #dc2626;
+    background: #fee2e2;
+    color: #991b1b;
 }
 
 .badge-id {
     font-size: 0.75rem;
-    color: #999;
+    color: #9ca3af;
 }
 
 .plantilla-info-datos {
@@ -102,12 +109,12 @@
 }
 
 .dato-label {
-    color: #888;
+    color: #6b7280;
     min-width: 60px;
 }
 
 .dato-valor {
-    color: #222;
+    color: #1a1a1a;
     font-weight: 500;
 }
 
@@ -115,31 +122,35 @@
     width: 100%;
     padding: 0.8rem;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #dc2626;
     color: white;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
     transition: background 0.2s;
 }
 
-.btn-desactivar:hover:not(:disabled) { background: #b91c1c; }
+.btn-desactivar:hover:not(:disabled) {
+    background: #b91c1c;
+}
 
 .btn-reactivar {
     width: 100%;
     padding: 0.8rem;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #16a34a;
     color: white;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
     transition: background 0.2s;
 }
 
-.btn-reactivar:hover:not(:disabled) { background: #15803d; }
+.btn-reactivar:hover:not(:disabled) {
+    background: #15803d;
+}
 
 .btn-desactivar:disabled,
 .btn-reactivar:disabled {
@@ -148,27 +159,34 @@
 }
 
 .link-volver-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
     text-align: center;
-    color: #f97316;
+    color: #6b7280;
     font-size: 0.85rem;
     cursor: pointer;
     margin: 0;
+    transition: color 0.2s;
 }
 
-.link-volver-bottom:hover { text-decoration: underline; }
+.link-volver-bottom:hover {
+    color: #1a1a1a;
+}
 
 .mensaje-error {
-    background: #fef2f2;
-    color: #dc2626;
-    border: 1px solid #fecaca;
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fca5a5;
     padding: 0.7rem 1rem;
-    border-radius: 8px;
+    border-radius: 10px;
     font-size: 0.85rem;
 }
 
 .cargando-texto {
     text-align: center;
-    color: #888;
+    color: #6b7280;
     padding: 2rem;
 }
 
@@ -176,7 +194,7 @@
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.5);
+    background: rgba(0, 0, 0, 0.5);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -186,38 +204,38 @@
 
 .modal-box {
     background: white;
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 2rem;
     width: 100%;
     max-width: 400px;
     text-align: center;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
 }
 
 .modal-icono {
-    font-size: 2.5rem;
-    color: #f97316;
-    margin-bottom: 1rem;
-    width: 60px;
-    height: 60px;
-    border: 2px solid #fed7aa;
-    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #ff6b1a;
+    margin-bottom: 1rem;
+    width: 60px;
+    height: 60px;
+    border: 2px solid #fde3cd;
+    border-radius: 50%;
     margin: 0 auto 1rem auto;
 }
 
 .modal-titulo {
     font-size: 1.2rem;
     font-weight: 700;
-    color: #111;
+    color: #1a1a1a;
     margin: 0 0 0.5rem 0;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
 }
 
 .modal-desc {
     font-size: 0.88rem;
-    color: #555;
+    color: #4b5563;
     margin: 0 0 1rem 0;
     line-height: 1.5;
 }
@@ -234,18 +252,20 @@
 
 .modal-lista li {
     font-size: 0.85rem;
-    color: #444;
+    color: #4b5563;
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
-.punto-naranja { color: #f97316; }
+.punto-naranja {
+    color: #ff6b1a;
+}
 
 .modal-pregunta {
     font-weight: 600;
     font-size: 0.9rem;
-    color: #222;
+    color: #1a1a1a;
     margin: 0 0 1.2rem 0;
 }
 
@@ -257,34 +277,45 @@
 .btn-no-cancelar {
     flex: 1;
     padding: 0.7rem;
-    border: 1px solid #ddd;
-    border-radius: 8px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
     background: white;
     cursor: pointer;
     font-size: 0.9rem;
-    color: #555;
+    font-weight: 600;
+    color: #4b5563;
     transition: background 0.2s;
 }
 
-.btn-no-cancelar:hover:not(:disabled) { background: #f5f5f5; }
+.btn-no-cancelar:hover:not(:disabled) {
+    background: #f9fafb;
+}
 
 .btn-si-desactivar {
     flex: 1;
     padding: 0.7rem;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #dc2626;
     color: white;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 0.9rem;
     cursor: pointer;
     transition: background 0.2s;
 }
 
-.btn-si-desactivar:hover:not(:disabled) { background: #b91c1c; }
+.btn-si-desactivar:hover:not(:disabled) {
+    background: #b91c1c;
+}
 
 .btn-no-cancelar:disabled,
 .btn-si-desactivar:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+}
+
+@media (max-width: 600px) {
+    .baja-container {
+        padding: 20px 16px 40px;
+    }
 }

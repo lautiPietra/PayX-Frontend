@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { obtenerPerfil, actualizarPerfil, cambiarPassword } from '../services/perfilService';
 import Navbar from '../components/Navbar';
+import { IconFileText, IconUser, IconLock, IconPhone, IconAtSign, IconEye, IconEyeOff, IconCheck, IconArrowLeft } from '../components/icons/Icons';
 import './Perfil.css';
 
 function Perfil() {
@@ -140,18 +141,25 @@ function Perfil() {
             <div className="perfil-container">
 
                 <button className="perfil-volver" onClick={() => navigate(-1)}>
-                    ← Volver
+                    <IconArrowLeft size={16} /> Volver
                 </button>
 
-                <h1 className="perfil-titulo-principal">Mi Perfil</h1>
-                <p className="perfil-subtitulo-principal">
-                    Actualiza tu informacion personal y configuracion de seguridad
-                </p>
+                <div className="perfil-encabezado">
+                    <div className="perfil-avatar-grande">
+                        {perfil.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
+                    </div>
+                    <div>
+                        <h1 className="perfil-titulo-principal">Mi Perfil</h1>
+                        <p className="perfil-subtitulo-principal">
+                            Actualiza tu informacion personal y configuracion de seguridad
+                        </p>
+                    </div>
+                </div>
 
                 {/* ===== Datos NO editables ===== */}
                 <div className="perfil-card">
                     <div className="perfil-card-header">
-                        <span className="perfil-card-icon">📋</span>
+                        <span className="perfil-card-icon"><IconFileText size={18} /></span>
                         <h2 className="perfil-card-titulo">Datos personales</h2>
                     </div>
                     <p className="perfil-card-subtitulo">
@@ -182,7 +190,7 @@ function Perfil() {
                 {/* ===== Informacion del perfil (editable) ===== */}
                 <div className="perfil-card">
                     <div className="perfil-card-header">
-                        <span className="perfil-card-icon naranja">👤</span>
+                        <span className="perfil-card-icon naranja"><IconUser size={18} /></span>
                         <h2 className="perfil-card-titulo">Informacion del perfil</h2>
                     </div>
                     <p className="perfil-card-subtitulo">
@@ -199,7 +207,7 @@ function Perfil() {
                         <div className="perfil-campo">
                             <label>Nombre de usuario</label>
                             <div className="perfil-input-group">
-                                <span className="perfil-input-icon">👤</span>
+                                <IconUser className="perfil-input-icon" size={16} />
                                 <input
                                     type="text"
                                     value={formInfo.nombreUsuario}
@@ -212,7 +220,7 @@ function Perfil() {
                         <div className="perfil-campo">
                             <label>Alias</label>
                             <div className="perfil-input-group">
-                                <span className="perfil-input-icon">@</span>
+                                <IconAtSign className="perfil-input-icon" size={16} />
                                 <input
                                     type="text"
                                     value={formInfo.alias}
@@ -227,7 +235,7 @@ function Perfil() {
                         <div className="perfil-campo">
                             <label>Telefono</label>
                             <div className="perfil-input-group">
-                                <span className="perfil-input-icon">📞</span>
+                                <IconPhone className="perfil-input-icon" size={16} />
                                 <input
                                     type="tel"
                                     value={formInfo.telefono}
@@ -238,7 +246,8 @@ function Perfil() {
                         </div>
 
                         <button type="submit" className="boton-perfil" disabled={guardandoInfo}>
-                            {guardandoInfo ? 'Guardando...' : '💾 Guardar cambios'}
+                            {!guardandoInfo && <IconCheck size={16} />}
+                            {guardandoInfo ? 'Guardando...' : 'Guardar cambios'}
                         </button>
                     </form>
                 </div>
@@ -246,7 +255,7 @@ function Perfil() {
                 {/* ===== Cambiar contraseña ===== */}
                 <div className="perfil-card">
                     <div className="perfil-card-header">
-                        <span className="perfil-card-icon naranja">🔒</span>
+                        <span className="perfil-card-icon naranja"><IconLock size={18} /></span>
                         <h2 className="perfil-card-titulo">Cambiar contrasena</h2>
                     </div>
                     <p className="perfil-card-subtitulo">
@@ -268,7 +277,7 @@ function Perfil() {
                             <div className="perfil-campo" key={campo.name}>
                                 <label>{campo.label}</label>
                                 <div className="perfil-input-group">
-                                    <span className="perfil-input-icon">🔒</span>
+                                    <IconLock className="perfil-input-icon" size={16} />
                                     <input
                                         type={mostrarPassword[campo.toggleKey] ? 'text' : 'password'}
                                         placeholder={campo.placeholder}
@@ -284,7 +293,7 @@ function Perfil() {
                                             [campo.toggleKey]: !mostrarPassword[campo.toggleKey]
                                         })}
                                     >
-                                        {mostrarPassword[campo.toggleKey] ? '🙈' : '👁️'}
+                                        {mostrarPassword[campo.toggleKey] ? <IconEyeOff size={16} /> : <IconEye size={16} />}
                                     </button>
                                 </div>
                                 {erroresPassword[campo.name] && <p className="campo-error">{erroresPassword[campo.name]}</p>}
@@ -292,7 +301,8 @@ function Perfil() {
                         ))}
 
                         <button type="submit" className="boton-perfil" disabled={cambiandoPassword}>
-                            {cambiandoPassword ? 'Cambiando...' : '🔒 Cambiar contrasena'}
+                            {!cambiandoPassword && <IconLock size={16} />}
+                            {cambiandoPassword ? 'Cambiando...' : 'Cambiar contrasena'}
                         </button>
                     </form>
                 </div>

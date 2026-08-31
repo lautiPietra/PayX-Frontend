@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { login, reenviarCodigo } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
+import { IconMail, IconLock, IconEye, IconEyeOff, IconGoogle } from '../components/icons/Icons';
 import './Login.css';
 
 function Login() {
@@ -66,7 +67,7 @@ function Login() {
                 texto: `¡Bienvenido ${respuesta.nombreCompleto}! Sesion iniciada correctamente.`
             });
             // Por ahora solo mostramos el mensaje. Despues redirigimos al home.
-            setTimeout(() => navigate('/Perfil'), 1000);
+            setTimeout(() => navigate('/inicio'), 1000);
         } catch (error) {
             const mensajeError = error.response?.data?.error
                 || 'Error al iniciar sesion. Intenta de nuevo.';
@@ -80,6 +81,14 @@ function Login() {
         } finally {
             setCargando(false);
         }
+    };
+
+    // Placeholder: todavia no hay integracion real con Google OAuth
+    const handleGoogleLogin = () => {
+        setMensajeGlobal({
+            tipo: 'info',
+            texto: 'El inicio de sesion con Google estara disponible muy pronto.'
+        });
     };
 
     // Reenviar el codigo y redirigir a la pantalla de verificacion
@@ -128,7 +137,8 @@ function Login() {
                         disabled={reenviando}
                         className="boton-verificar-ahora"
                     >
-                        {reenviando ? 'Enviando codigo...' : '✉️ Verificar mi email ahora'}
+                        <IconMail size={16} />
+                        {reenviando ? 'Enviando codigo...' : 'Verificar mi email ahora'}
                     </button>
                 )}
 
@@ -136,7 +146,7 @@ function Login() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">✉️</span>
+                            <IconMail className="input-icon" />
                             <input
                                 type="email"
                                 name="email"
@@ -150,7 +160,7 @@ function Login() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">🔒</span>
+                            <IconLock className="input-icon" />
                             <input
                                 type={mostrarPassword ? 'text' : 'password'}
                                 name="password"
@@ -164,7 +174,7 @@ function Login() {
                                 className="password-toggle"
                                 onClick={() => setMostrarPassword(!mostrarPassword)}
                             >
-                                {mostrarPassword ? '🙈' : '👁️'}
+                                {mostrarPassword ? <IconEyeOff /> : <IconEye />}
                             </button>
                         </div>
                         {errores.password && <p className="campo-error">{errores.password}</p>}
@@ -178,6 +188,13 @@ function Login() {
                         {cargando ? 'Iniciando sesion...' : 'Iniciar sesion'}
                     </button>
                 </form>
+
+                <div className="login-divider"><span>o continua con</span></div>
+
+                <button type="button" className="boton-google" onClick={handleGoogleLogin}>
+                    <IconGoogle size={18} />
+                    Continuar con Google
+                </button>
 
                 <div className="login-footer">
                     <p>¿No tienes una cuenta? <Link to="/registro">Registrate</Link></p>

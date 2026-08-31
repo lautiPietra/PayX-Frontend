@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { registrarUsuario } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
+import { IconUser, IconMail, IconPhone, IconAtSign, IconIdCard, IconLock, IconEye, IconEyeOff } from '../components/icons/Icons';
 import './Registro.css';
 
 function Registro() {
@@ -127,7 +128,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">👤</span>
+                            <IconUser className="input-icon" />
                             <input
                                 type="text"
                                 name="nombreCompleto"
@@ -141,7 +142,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">✉️</span>
+                            <IconMail className="input-icon" />
                             <input
                                 type="email"
                                 name="email"
@@ -155,7 +156,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">📞</span>
+                            <IconPhone className="input-icon" />
                             <input
                                 type="tel"
                                 name="telefono"
@@ -169,7 +170,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">👥</span>
+                            <IconAtSign className="input-icon" />
                             <input
                                 type="text"
                                 name="nombreUsuario"
@@ -183,7 +184,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">💳</span>
+                            <IconIdCard className="input-icon" />
                             <input
                                 type="text"
                                 name="dni"
@@ -197,7 +198,7 @@ function Registro() {
 
                     <div className="campo">
                         <div className="input-group">
-                            <span className="input-icon">🔒</span>
+                            <IconLock className="input-icon" />
                             <input
                                 type={mostrarPassword ? 'text' : 'password'}
                                 name="password"
@@ -211,7 +212,7 @@ function Registro() {
                                 className="password-toggle"
                                 onClick={() => setMostrarPassword(!mostrarPassword)}
                             >
-                                {mostrarPassword ? '🙈' : '👁️'}
+                                {mostrarPassword ? <IconEyeOff /> : <IconEye />}
                             </button>
                         </div>
                         {errores.password && <p className="campo-error">{errores.password}</p>}

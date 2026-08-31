@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import Navbar from "../components/Navbar";
+import { IconArrowLeft, IconAlertTriangle } from "../components/icons/Icons";
 import "./BajaPlantilla.css";
 
 function BajaPlantilla() {
@@ -21,7 +23,7 @@ function BajaPlantilla() {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setPlantilla(res.data);
-            } catch (err) {
+            } catch {
                 setError("No se pudo cargar la plantilla.");
             } finally {
                 setCargandoDatos(false);
@@ -38,7 +40,7 @@ function BajaPlantilla() {
                 headers: { Authorization: `Bearer ${token}` },
             });
             navigate("/admin/plantillas");
-        } catch (err) {
+        } catch {
             setError("Error al desactivar la plantilla.");
             setModalVisible(false);
         } finally {
@@ -54,7 +56,7 @@ function BajaPlantilla() {
                 headers: { Authorization: `Bearer ${token}` },
             });
             navigate("/admin/plantillas");
-        } catch (err) {
+        } catch {
             setError("Error al reactivar la plantilla.");
         } finally {
             setCargando(false);
@@ -68,89 +70,98 @@ function BajaPlantilla() {
 
     if (cargandoDatos) {
         return (
-            <div className="baja-container">
-                <div className="baja-card">
-                    <p className="cargando-texto">Cargando plantilla...</p>
+            <>
+                <Navbar />
+                <div className="baja-container">
+                    <div className="baja-card">
+                        <p className="cargando-texto">Cargando plantilla...</p>
+                    </div>
                 </div>
-            </div>
+            </>
         );
     }
 
     if (error && !plantilla) {
         return (
-            <div className="baja-container">
-                <div className="baja-card">
-                    <p className="mensaje-error">{error}</p>
+            <>
+                <Navbar />
+                <div className="baja-container">
+                    <div className="baja-card">
+                        <p className="mensaje-error">{error}</p>
+                    </div>
                 </div>
-            </div>
+            </>
         );
     }
 
     return (
-        <div className="baja-container">
-            <div className="baja-card">
+        <>
+            <Navbar />
+            <div className="baja-container">
 
-                {/* Header */}
-                <div className="baja-header">
-                    <h1 className="payx-logo">Pay<span>X</span></h1>
-                    <p className="baja-subtitulo">Gestión de Plantilla de Notificación</p>
-                </div>
+                <button className="plantillas-volver-admin" onClick={() => navigate("/admin")}>
+                    <IconArrowLeft size={16} /> Volver al panel de administración
+                </button>
 
-                <div className="baja-body">
+                <div className="baja-card">
 
-                    {/* Volver */}
-                    <span className="link-volver" onClick={() => navigate("/admin/plantillas")}>
-                        ← Volver
-                    </span>
-
-                    {/* Info de la plantilla */}
-                    <div className="plantilla-info-card">
-                        <div className="plantilla-info-top">
-                            <span className={`badge-estado ${plantilla.activa ? "activa" : "inactiva"}`}>
-                                ● {plantilla.activa ? "Activa" : "Inactiva"}
-                            </span>
-                            <span className="badge-id">ID: #{plantilla.id}</span>
-                        </div>
-                        <div className="plantilla-info-datos">
-                            <div className="dato-fila">
-                                <span className="dato-label">Código:</span>
-                                <span className="dato-valor">{plantilla.codigo}</span>
-                            </div>
-                            <div className="dato-fila">
-                                <span className="dato-label">Nombre:</span>
-                                <span className="dato-valor">{plantilla.nombre}</span>
-                            </div>
-                            <div className="dato-fila">
-                                <span className="dato-label">Creada:</span>
-                                <span className="dato-valor">{formatearFecha(plantilla.fechaCreacion)}</span>
-                            </div>
-                        </div>
+                    {/* Header */}
+                    <div className="baja-header">
+                        <h1 className="baja-titulo">Gestión de plantilla</h1>
+                        <p className="baja-subtitulo">Desactivá o reactivá esta plantilla de notificación</p>
                     </div>
 
-                    {error && <div className="mensaje-error">{error}</div>}
+                    <div className="baja-body">
 
-                    {/* Botones segun estado */}
-                    {plantilla.activa ? (
-                        <button
-                            className="btn-desactivar"
-                            onClick={() => setModalVisible(true)}
-                            disabled={cargando}
-                        >
-                            Desactivar Plantilla
-                        </button>
-                    ) : (
-                        <button
-                            className="btn-reactivar"
-                            onClick={reactivar}
-                            disabled={cargando}
-                        >
-                            {cargando ? "Reactivando..." : "Reactivar Plantilla"}
-                        </button>
-                    )}
+                        {/* Info de la plantilla */}
+                        <div className="plantilla-info-card">
+                            <div className="plantilla-info-top">
+                                <span className={`badge-estado ${plantilla.activa ? "activa" : "inactiva"}`}>
+                                    ● {plantilla.activa ? "Activa" : "Inactiva"}
+                                </span>
+                                <span className="badge-id">ID: #{plantilla.id}</span>
+                            </div>
+                            <div className="plantilla-info-datos">
+                                <div className="dato-fila">
+                                    <span className="dato-label">Código:</span>
+                                    <span className="dato-valor">{plantilla.codigo}</span>
+                                </div>
+                                <div className="dato-fila">
+                                    <span className="dato-label">Nombre:</span>
+                                    <span className="dato-valor">{plantilla.nombre}</span>
+                                </div>
+                                <div className="dato-fila">
+                                    <span className="dato-label">Creada:</span>
+                                    <span className="dato-valor">{formatearFecha(plantilla.fechaCreacion)}</span>
+                                </div>
+                            </div>
+                        </div>
 
-                    <p className="link-volver-bottom" onClick={() => navigate("/admin/plantillas")}>
-                        ← Volver al listado de plantillas
-                    </p>
+                        {error && <div className="mensaje-error">{error}</div>}
+
+                        {/* Botones segun estado */}
+                        {plantilla.activa ? (
+                            <button
+                                className="btn-desactivar"
+                                onClick={() => setModalVisible(true)}
+                                disabled={cargando}
+                            >
+                                Desactivar Plantilla
+                            </button>
+                        ) : (
+                            <button
+                                className="btn-reactivar"
+                                onClick={reactivar}
+                                disabled={cargando}
+                            >
+                                {cargando ? "Reactivando..." : "Reactivar Plantilla"}
+                            </button>
+                        )}
+
+                        <p className="link-volver-bottom" onClick={() => navigate("/admin/plantillas")}>
+                            <IconArrowLeft size={13} /> Volver al listado de plantillas
+                        </p>
+                    </div>
                 </div>
             </div>
 
@@ -158,7 +169,7 @@ function BajaPlantilla() {
             {modalVisible && (
                 <div className="modal-overlay">
                     <div className="modal-box">
-                        <div className="modal-icono">⚠</div>
+                        <div className="modal-icono"><IconAlertTriangle size={26} /></div>
                         <h2 className="modal-titulo">¿Desactivar plantilla?</h2>
                         <p className="modal-desc">
                             Estás por desactivar la plantilla:<br />
@@ -189,7 +200,7 @@ function BajaPlantilla() {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 }
 

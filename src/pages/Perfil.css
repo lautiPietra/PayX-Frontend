@@ -3,6 +3,7 @@
   max-width: 720px;
   margin: 0 auto;
   padding: 32px 24px 60px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .perfil-loading {
@@ -27,22 +28,53 @@
   transition: color 0.2s;
 }
 
+.perfil-volver {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .perfil-volver:hover {
   color: #1a1a1a;
 }
 
+/* ===== Encabezado (avatar + titulos) ===== */
+.perfil-encabezado {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+.perfil-avatar-grande {
+  flex-shrink: 0;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b1a, #ff8b4d);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 24px;
+}
+
 /* ===== Titulos ===== */
 .perfil-titulo-principal {
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 700;
   color: #1a1a1a;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .perfil-subtitulo-principal {
   font-size: 15px;
   color: #6b7280;
-  margin-bottom: 28px;
+  margin-bottom: 0;
 }
 
 /* ===== Card ===== */
@@ -52,7 +84,7 @@
   padding: 28px;
   margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
-  border: 1px solid #9a9a9a;
+  border: 1px solid #e5e7eb;
   animation: slideIn 0.4s ease;
 }
 
@@ -69,7 +101,6 @@
 }
 
 .perfil-card-icon {
-  font-size: 20px;
   width: 36px;
   height: 36px;
   display: flex;
@@ -77,10 +108,12 @@
   justify-content: center;
   background-color: #f3f4f6;
   border-radius: 10px;
+  color: #4b5563;
 }
 
 .perfil-card-icon.naranja {
   background-color: #fff1e6;
+  color: #ff6b1a;
 }
 
 .perfil-card-titulo {
@@ -88,6 +121,8 @@
   font-weight: 700;
   color: #1a1a1a;
   margin: 0;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.01em;
 }
 
 .perfil-card-subtitulo {
@@ -125,7 +160,7 @@
 .perfil-dato-valor {
   padding: 12px 14px;
   background-color: #f9fafb;
-  border: 1px solid #646262;
+  border: 1px solid #e5e7eb;
   border-radius: 10px;
   font-size: 14px;
   color: #1a1a1a;
@@ -161,7 +196,11 @@
   top: 50%;
   transform: translateY(-50%);
   color: #9ca3af;
-  font-size: 15px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   z-index: 1;
   pointer-events: none;
 }
@@ -278,7 +317,18 @@
   }
 
   .perfil-titulo-principal {
-    font-size: 26px;
+    font-size: 22px;
+  }
+
+  .perfil-encabezado {
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .perfil-avatar-grande {
+    width: 48px;
+    height: 48px;
+    font-size: 19px;
   }
 
   .perfil-card {

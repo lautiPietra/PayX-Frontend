@@ -7,6 +7,7 @@
   padding: 20px;
   background-color: #f0f0f0;
   box-sizing: border-box;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 /* ===== Card ===== */
@@ -53,6 +54,8 @@
   font-weight: 700;
   color: #1a1a1a;
   margin-bottom: 10px;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.02em;
 }
 
 .recuperar-subtitulo {
@@ -86,7 +89,11 @@
   top: 50%;
   transform: translateY(-50%);
   color: #9ca3af;
-  font-size: 16px;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
   z-index: 1;
 }
@@ -234,8 +241,8 @@
 }
 
 .flecha-volver {
-  font-size: 18px;
-  font-weight: 400;
+  display: flex;
+  align-items: center;
 }
 
 /* ===== Reenviar codigo ===== */

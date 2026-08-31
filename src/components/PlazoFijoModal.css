@@ -1,0 +1,22 @@
+.plazo-fijo-info {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 12px 14px;
+    background-color: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.plazo-fijo-info svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: #ff6b1a;
+}
+
+.plazo-fijo-info strong {
+    color: #1a1a1a;
+}
