@@ -1,0 +1,226 @@
+/* ===== Contenedor ===== */
+.verificacion-container {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background-color: #f0f0f0;
+  box-sizing: border-box;
+}
+
+/* ===== Card ===== */
+.verificacion-card {
+  background-color: #ffffff;
+  width: 100%;
+  max-width: 480px;
+  padding: 48px 44px;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  box-sizing: border-box;
+  text-align: center;
+}
+
+/* ===== Logo ===== */
+.verificacion-logo-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.verificacion-logo {
+  width: 96px;
+  height: 96px;
+  background-color: #000000;
+  border-radius: 18px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.verificacion-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 10px;
+  box-sizing: border-box;
+}
+/* ===== Escudo de seguridad ===== */
+.verificacion-escudo {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 56px;
+  height: 56px;
+  background-color: #fff1e6;
+  border-radius: 50%;
+  margin-bottom: 20px;
+}
+
+/* ===== Titulos ===== */
+.verificacion-titulo {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 10px;
+}
+
+.verificacion-subtitulo {
+  font-size: 15px;
+  color: #6b7280;
+  margin-bottom: 32px;
+  line-height: 1.5;
+}
+
+.verificacion-subtitulo strong {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+/* ===== Inputs de codigo ===== */
+.codigo-inputs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.codigo-input {
+  width: 52px;
+  height: 60px;
+  border: 2px solid #e5e7eb;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 26px;
+  font-weight: 600;
+  color: #1a1a1a;
+  background-color: #fafafa;
+  outline: none;
+  transition: all 0.2s;
+  font-family: inherit;
+}
+
+.codigo-input:focus {
+  border-color: #ff6b1a;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255, 107, 26, 0.15);
+}
+
+.codigo-input:not(:placeholder-shown) {
+  border-color: #ff6b1a;
+  background-color: #fff7f0;
+}
+
+/* ===== Boton verificar ===== */
+.boton-verificar {
+  width: 100%;
+  padding: 16px;
+  background-color: #ff6b1a;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  font-family: inherit;
+  box-sizing: border-box;
+  letter-spacing: 0.2px;
+}
+
+.boton-verificar:hover:not(:disabled) {
+  background-color: #e85d0f;
+}
+
+.boton-verificar:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.boton-verificar:disabled {
+  background-color: #fcb685;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* ===== Reenviar ===== */
+.verificacion-reenviar {
+  margin-top: 24px;
+}
+
+.verificacion-reenviar p {
+  color: #6b7280;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.link-reenviar {
+  background: none;
+  border: none;
+  color: #ff6b1a;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  text-decoration: none;
+}
+
+.link-reenviar:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.link-reenviar:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ===== Mensaje global ===== */
+.mensaje-global {
+  padding: 12px 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.mensaje-global.exito {
+  background-color: #d1fae5;
+  color: #065f46;
+  border: 1px solid #6ee7b7;
+}
+
+.mensaje-global.error {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fca5a5;
+}
+
+/* ===== Responsive mobile ===== */
+@media (max-width: 480px) {
+  .verificacion-container {
+    padding: 0;
+    background-color: #ffffff;
+  }
+
+  .verificacion-card {
+    padding: 36px 20px;
+    box-shadow: none;
+    max-width: 100%;
+    border-radius: 0;
+  }
+
+  .codigo-inputs {
+    gap: 6px;
+  }
+
+  .codigo-input {
+    width: 54px;
+    height: 54px;
+    font-size: 22px;
+  }
+
+  .verificacion-titulo {
+    font-size: 24px;
+  }
+}

@@ -1,0 +1,290 @@
+.baja-container {
+    min-height: 100vh;
+    background-color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.baja-card {
+    background: white;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 480px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.baja-header {
+    text-align: center;
+    background: #111;
+    padding: 1.5rem;
+}
+
+.payx-logo {
+    color: white;
+    font-size: 2rem;
+    font-weight: 900;
+    margin: 0;
+    letter-spacing: -1px;
+}
+
+.payx-logo span { color: #f97316; }
+
+.baja-subtitulo {
+    color: #aaa;
+    font-size: 0.85rem;
+    margin: 0.3rem 0 0 0;
+}
+
+.baja-body {
+    padding: 1.5rem 2rem 2rem 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+}
+
+.link-volver {
+    color: #f97316;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+
+.link-volver:hover { text-decoration: underline; }
+
+.plantilla-info-card {
+    border: 1px solid #eee;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #fafafa;
+}
+
+.plantilla-info-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+
+.badge-estado {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.7rem;
+    border-radius: 20px;
+}
+
+.badge-estado.activa {
+    background: #f0fdf4;
+    color: #16a34a;
+}
+
+.badge-estado.inactiva {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+.badge-id {
+    font-size: 0.75rem;
+    color: #999;
+}
+
+.plantilla-info-datos {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.dato-fila {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.88rem;
+}
+
+.dato-label {
+    color: #888;
+    min-width: 60px;
+}
+
+.dato-valor {
+    color: #222;
+    font-weight: 500;
+}
+
+.btn-desactivar {
+    width: 100%;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 8px;
+    background: #dc2626;
+    color: white;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-desactivar:hover:not(:disabled) { background: #b91c1c; }
+
+.btn-reactivar {
+    width: 100%;
+    padding: 0.8rem;
+    border: none;
+    border-radius: 8px;
+    background: #16a34a;
+    color: white;
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-reactivar:hover:not(:disabled) { background: #15803d; }
+
+.btn-desactivar:disabled,
+.btn-reactivar:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.link-volver-bottom {
+    text-align: center;
+    color: #f97316;
+    font-size: 0.85rem;
+    cursor: pointer;
+    margin: 0;
+}
+
+.link-volver-bottom:hover { text-decoration: underline; }
+
+.mensaje-error {
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1px solid #fecaca;
+    padding: 0.7rem 1rem;
+    border-radius: 8px;
+    font-size: 0.85rem;
+}
+
+.cargando-texto {
+    text-align: center;
+    color: #888;
+    padding: 2rem;
+}
+
+/* MODAL */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modal-box {
+    background: white;
+    border-radius: 12px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+}
+
+.modal-icono {
+    font-size: 2.5rem;
+    color: #f97316;
+    margin-bottom: 1rem;
+    width: 60px;
+    height: 60px;
+    border: 2px solid #fed7aa;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1rem auto;
+}
+
+.modal-titulo {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: #111;
+    margin: 0 0 0.5rem 0;
+}
+
+.modal-desc {
+    font-size: 0.88rem;
+    color: #555;
+    margin: 0 0 1rem 0;
+    line-height: 1.5;
+}
+
+.modal-lista {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1rem 0;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.modal-lista li {
+    font-size: 0.85rem;
+    color: #444;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.punto-naranja { color: #f97316; }
+
+.modal-pregunta {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #222;
+    margin: 0 0 1.2rem 0;
+}
+
+.modal-botones {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-no-cancelar {
+    flex: 1;
+    padding: 0.7rem;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: #555;
+    transition: background 0.2s;
+}
+
+.btn-no-cancelar:hover:not(:disabled) { background: #f5f5f5; }
+
+.btn-si-desactivar {
+    flex: 1;
+    padding: 0.7rem;
+    border: none;
+    border-radius: 8px;
+    background: #dc2626;
+    color: white;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-si-desactivar:hover:not(:disabled) { background: #b91c1c; }
+
+.btn-no-cancelar:disabled,
+.btn-si-desactivar:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
