@@ -8,7 +8,7 @@ export const listarUsuarios = async () => {
 };
 
 export const buscarUsuarios = async (termino) => {
-    const response = await axios.get(`${API_URL}/usuarios/buscar?termino=${termino}`);
+    const response = await axios.get(`${API_URL}/usuarios/buscar`, { params: { termino } });
     return response.data;
 };
 

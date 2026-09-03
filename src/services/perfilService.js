@@ -12,6 +12,13 @@ export const actualizarPerfil = async (datos) => {
     return response.data;
 };
 
+export const actualizarFotoPerfil = async (archivo) => {
+    const formData = new FormData();
+    formData.append('archivo', archivo);
+    const response = await axios.post(`${API_URL}/foto`, formData);
+    return response.data;
+};
+
 export const cambiarPassword = async (passwordActual, nuevaPassword) => {
     const response = await axios.put(`${API_URL}/password`, {
         passwordActual,

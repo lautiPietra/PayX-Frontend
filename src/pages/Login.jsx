@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { login, reenviarCodigo } from '../services/authService';
+import { login, loginConGoogle, reenviarCodigo } from '../services/authService';
+import { GOOGLE_CLIENT_ID } from '../config';
 import logoPayX from '../assets/payx-logo.png';
-import { IconMail, IconLock, IconEye, IconEyeOff, IconGoogle } from '../components/icons/Icons';
+import { IconMail, IconLock, IconEye, IconEyeOff } from '../components/icons/Icons';
 import './Login.css';
 
 function Login() {
@@ -21,6 +22,8 @@ function Login() {
     // Estado especial para mostrar el boton de verificar email
     const [emailNoVerificado, setEmailNoVerificado] = useState(false);
     const [reenviando, setReenviando] = useState(false);
+
+    const googleBotonRef = useRef(null);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -83,13 +86,64 @@ function Login() {
         }
     };
 
-    // Placeholder: todavia no hay integracion real con Google OAuth
-    const handleGoogleLogin = () => {
-        setMensajeGlobal({
-            tipo: 'info',
-            texto: 'El inicio de sesion con Google estara disponible muy pronto.'
-        });
+    // Recibe el credential (JWT) que entrega Google Identity Services al tocar su boton
+    const manejarCredencialGoogle = async (respuesta) => {
+        setMensajeGlobal(null);
+        setEmailNoVerificado(false);
+        setCargando(true);
+
+        try {
+            const datos = await loginConGoogle(respuesta.credential);
+            setMensajeGlobal({
+                tipo: 'exito',
+                texto: `¡Bienvenido ${datos.nombreCompleto}! Sesion iniciada correctamente.`
+            });
+            setTimeout(() => navigate('/inicio'), 1000);
+        } catch (error) {
+            const mensajeError = error.response?.data?.error
+                || 'Error al iniciar sesion con Google. Intenta de nuevo.';
+            setMensajeGlobal({ tipo: 'error', texto: mensajeError });
+        } finally {
+            setCargando(false);
+        }
     };
+
+    // Inicializa el boton oficial de Google en cuanto el script de Google este disponible
+    useEffect(() => {
+        let intervalo;
+
+        const inicializarGoogle = () => {
+            if (!window.google?.accounts?.id || !googleBotonRef.current) return;
+
+            window.google.accounts.id.initialize({
+                client_id: GOOGLE_CLIENT_ID,
+                callback: manejarCredencialGoogle,
+            });
+            window.google.accounts.id.renderButton(googleBotonRef.current, {
+                type: 'standard',
+                theme: 'outline',
+                size: 'large',
+                shape: 'rectangular',
+                text: 'continue_with',
+                width: Math.min(googleBotonRef.current.offsetWidth, 400),
+            });
+        };
+
+        if (window.google?.accounts?.id) {
+            inicializarGoogle();
+        } else {
+            // El script de Google se carga con async/defer: reintentamos hasta que este listo
+            intervalo = setInterval(() => {
+                if (window.google?.accounts?.id) {
+                    clearInterval(intervalo);
+                    inicializarGoogle();
+                }
+            }, 200);
+        }
+
+        return () => clearInterval(intervalo);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Reenviar el codigo y redirigir a la pantalla de verificacion
     const handleVerificarAhora = async () => {
@@ -191,10 +245,7 @@ function Login() {
 
                 <div className="login-divider"><span>o continua con</span></div>
 
-                <button type="button" className="boton-google" onClick={handleGoogleLogin}>
-                    <IconGoogle size={18} />
-                    Continuar con Google
-                </button>
+                <div ref={googleBotonRef} className="google-boton-contenedor"></div>
 
                 <div className="login-footer">
                     <p>¿No tienes una cuenta? <Link to="/registro">Registrate</Link></p>

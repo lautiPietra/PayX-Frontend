@@ -43,16 +43,36 @@ export const reenviarCodigo = async (email) => {
     return response.data;
 };
 
+// Guarda el token y los datos basicos del usuario logueado en localStorage.
+const guardarSesion = (datos) => {
+    localStorage.setItem('token', datos.token);
+    localStorage.setItem('usuario', JSON.stringify({
+        id: datos.id,
+        nombreCompleto: datos.nombreCompleto,
+        email: datos.email,
+        nombreUsuario: datos.nombreUsuario,
+        rol: datos.rol,
+        fotoPerfilUrl: datos.fotoPerfilUrl
+    }));
+};
+
+// Actualiza campos puntuales del usuario guardado (ej: foto de perfil nueva) y
+// avisa al resto de la app (Navbar) para que se refresque sin recargar la pagina.
+export const actualizarUsuarioGuardado = (cambios) => {
+    const actual = JSON.parse(localStorage.getItem('usuario') || '{}');
+    localStorage.setItem('usuario', JSON.stringify({ ...actual, ...cambios }));
+    window.dispatchEvent(new Event('usuario-actualizado'));
+};
+
 export const login = async (email, password) => {
     const response = await axios.post(`${API_URL}/login`, { email, password });
-    localStorage.setItem('token', response.data.token);
-    localStorage.setItem('usuario', JSON.stringify({
-        id: response.data.id,
-        nombreCompleto: response.data.nombreCompleto,
-        email: response.data.email,
-        nombreUsuario: response.data.nombreUsuario,
-        rol: response.data.rol
-    }));
+    guardarSesion(response.data);
+    return response.data;
+};
+
+export const loginConGoogle = async (idToken) => {
+    const response = await axios.post(`${API_URL}/google`, { idToken });
+    guardarSesion(response.data);
     return response.data;
 };
 

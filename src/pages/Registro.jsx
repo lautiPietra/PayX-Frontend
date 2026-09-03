@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { registrarUsuario } from '../services/authService';
 import logoPayX from '../assets/payx-logo.png';
 import { IconUser, IconMail, IconPhone, IconAtSign, IconIdCard, IconLock, IconEye, IconEyeOff } from '../components/icons/Icons';
@@ -224,8 +224,8 @@ function Registro() {
                 </form>
 
                 <div className="registro-links">
-                    <p>¿Ya tienes una cuenta? <a href="/login">Inicia sesion</a></p>
-                    <p><a href="/login">¿Olvidaste tu contrasena?</a></p>
+                    <p>¿Ya tienes una cuenta? <Link to="/login">Inicia sesion</Link></p>
+                    <p><Link to="/olvide-password">¿Olvidaste tu contrasena?</Link></p>
                 </div>
             </div>
         </div>

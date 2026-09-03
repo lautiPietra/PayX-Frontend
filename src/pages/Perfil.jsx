@@ -1,18 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { obtenerPerfil, actualizarPerfil, cambiarPassword } from '../services/perfilService';
+import { obtenerPerfil, actualizarPerfil, actualizarFotoPerfil, cambiarPassword } from '../services/perfilService';
+import { actualizarUsuarioGuardado } from '../services/authService';
 import Navbar from '../components/Navbar';
-import { IconFileText, IconUser, IconLock, IconPhone, IconAtSign, IconEye, IconEyeOff, IconCheck, IconArrowLeft } from '../components/icons/Icons';
+import { IconFileText, IconUser, IconLock, IconPhone, IconAtSign, IconEye, IconEyeOff, IconCheck, IconArrowLeft, IconIdCard, IconAlertTriangle, IconEdit } from '../components/icons/Icons';
 import './Perfil.css';
+
+const TIPOS_IMAGEN_PERMITIDOS = ['image/jpeg', 'image/png', 'image/webp'];
+const TAMANO_MAXIMO_FOTO = 5 * 1024 * 1024; // 5MB, igual que el limite del backend
 
 function Perfil() {
     const navigate = useNavigate();
 
     const [perfil, setPerfil] = useState(null);
     const [cargandoPerfil, setCargandoPerfil] = useState(true);
+    const [errorCarga, setErrorCarga] = useState(null);
+
+    // Estados de la foto de perfil
+    const [subiendoFoto, setSubiendoFoto] = useState(false);
+    const [errorFoto, setErrorFoto] = useState(null);
+    const inputFotoRef = useRef(null);
 
     // Estados de la card de Informacion
-    const [formInfo, setFormInfo] = useState({ nombreUsuario: '', alias: '', telefono: '' });
+    const [formInfo, setFormInfo] = useState({ nombreUsuario: '', alias: '', telefono: '', dni: '' });
     const [erroresInfo, setErroresInfo] = useState({});
     const [mensajeInfo, setMensajeInfo] = useState(null);
     const [guardandoInfo, setGuardandoInfo] = useState(false);
@@ -36,18 +46,55 @@ function Perfil() {
     }, []);
 
     const cargarPerfil = async () => {
+        setErrorCarga(null);
         try {
             const datos = await obtenerPerfil();
             setPerfil(datos);
             setFormInfo({
                 nombreUsuario: datos.nombreUsuario,
                 alias: datos.alias,
-                telefono: datos.telefono
+                telefono: datos.telefono || '',
+                dni: datos.dni || ''
             });
         } catch (error) {
             console.error('Error al cargar perfil', error);
+            setErrorCarga(error.response?.data?.error || 'No pudimos cargar tu perfil. Intenta de nuevo.');
         } finally {
             setCargandoPerfil(false);
+        }
+    };
+
+    // ========= FOTO DE PERFIL =========
+
+    const handleSeleccionarFoto = () => {
+        setErrorFoto(null);
+        inputFotoRef.current?.click();
+    };
+
+    const handleArchivoSeleccionado = async (e) => {
+        const archivo = e.target.files?.[0];
+        e.target.value = ''; // permite volver a elegir el mismo archivo despues
+        if (!archivo) return;
+
+        if (!TIPOS_IMAGEN_PERMITIDOS.includes(archivo.type)) {
+            setErrorFoto('Formato invalido. Usá una imagen JPG, PNG o WEBP');
+            return;
+        }
+        if (archivo.size > TAMANO_MAXIMO_FOTO) {
+            setErrorFoto('La imagen no puede pesar más de 5MB');
+            return;
+        }
+
+        setErrorFoto(null);
+        setSubiendoFoto(true);
+        try {
+            const actualizado = await actualizarFotoPerfil(archivo);
+            setPerfil(actualizado);
+            actualizarUsuarioGuardado({ fotoPerfilUrl: actualizado.fotoPerfilUrl });
+        } catch (error) {
+            setErrorFoto(error.response?.data?.error || 'No pudimos subir la imagen. Intenta de nuevo');
+        } finally {
+            setSubiendoFoto(false);
         }
     };
 
@@ -55,6 +102,14 @@ function Perfil() {
 
     const validarInfo = () => {
         const e = {};
+
+        // El DNI solo se pide (y se puede cargar) si todavia no esta seteado en la cuenta
+        // (ej: cuentas creadas con Google). Una vez guardado, queda inmutable.
+        if (!perfil.dni) {
+            if (!formInfo.dni.trim()) e.dni = 'Obligatorio';
+            else if (!/^[0-9]{7,10}$/.test(formInfo.dni)) e.dni = 'Debe tener entre 7 y 10 digitos';
+        }
+
         if (!formInfo.nombreUsuario.trim()) e.nombreUsuario = 'Obligatorio';
         else if (formInfo.nombreUsuario.length < 3 || formInfo.nombreUsuario.length > 20)
             e.nombreUsuario = 'Entre 3 y 20 caracteres';
@@ -135,6 +190,27 @@ function Perfil() {
         );
     }
 
+    if (errorCarga || !perfil) {
+        return (
+            <>
+                <Navbar />
+                <div className="perfil-container">
+                    <button className="perfil-volver" onClick={() => navigate(-1)}>
+                        <IconArrowLeft size={16} /> Volver
+                    </button>
+                    <div className="perfil-card">
+                        <p className="mensaje-perfil error">
+                            {errorCarga || 'No pudimos cargar tu perfil.'}
+                        </p>
+                        <button className="boton-perfil" onClick={cargarPerfil}>
+                            Reintentar
+                        </button>
+                    </div>
+                </div>
+            </>
+        );
+    }
+
     return (
         <>
             <Navbar />
@@ -145,16 +221,54 @@ function Perfil() {
                 </button>
 
                 <div className="perfil-encabezado">
-                    <div className="perfil-avatar-grande">
-                        {perfil.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
+                    <div className="perfil-avatar-wrapper">
+                        <div className="perfil-avatar-grande">
+                            {perfil.fotoPerfilUrl ? (
+                                <img src={perfil.fotoPerfilUrl} alt="Foto de perfil" />
+                            ) : (
+                                perfil.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'
+                            )}
+                            {subiendoFoto && <div className="perfil-avatar-cargando">Subiendo...</div>}
+                        </div>
+                        <button
+                            type="button"
+                            className="perfil-avatar-cambiar"
+                            onClick={handleSeleccionarFoto}
+                            disabled={subiendoFoto}
+                            title="Cambiar foto de perfil"
+                            aria-label="Cambiar foto de perfil"
+                        >
+                            <IconEdit size={14} />
+                        </button>
+                        <input
+                            ref={inputFotoRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            hidden
+                            onChange={handleArchivoSeleccionado}
+                        />
                     </div>
                     <div>
                         <h1 className="perfil-titulo-principal">Mi Perfil</h1>
                         <p className="perfil-subtitulo-principal">
                             Actualiza tu informacion personal y configuracion de seguridad
                         </p>
+                        {errorFoto && <p className="campo-error">{errorFoto}</p>}
                     </div>
                 </div>
+
+                {(!perfil.dni || !perfil.telefono) && (
+                    <div className="perfil-alerta-incompleto">
+                        <IconAlertTriangle size={20} />
+                        <span>
+                            Para operar con tu cuenta necesitás completar tu{' '}
+                            {!perfil.dni && !perfil.telefono
+                                ? 'DNI y tu número de teléfono'
+                                : !perfil.dni ? 'DNI' : 'número de teléfono'}
+                            {' '}en "Información del perfil".
+                        </span>
+                    </div>
+                )}
 
                 {/* ===== Datos NO editables ===== */}
                 <div className="perfil-card">
@@ -177,7 +291,9 @@ function Perfil() {
                         </div>
                         <div className="perfil-dato">
                             <label>DNI</label>
-                            <div className="perfil-dato-valor">{perfil.dni}</div>
+                            <div className={`perfil-dato-valor ${!perfil.dni ? 'pendiente' : ''}`}>
+                                {perfil.dni || 'Pendiente de completar'}
+                            </div>
                         </div>
                         
                         <div className="perfil-dato perfil-dato-full">
@@ -204,6 +320,25 @@ function Perfil() {
                     )}
 
                     <form onSubmit={handleSubmitInfo} noValidate>
+                        {!perfil.dni && (
+                            <div className="perfil-campo">
+                                <label>DNI</label>
+                                <div className="perfil-input-group">
+                                    <IconIdCard className="perfil-input-icon" size={16} />
+                                    <input
+                                        type="text"
+                                        inputMode="numeric"
+                                        placeholder="Tu numero de DNI"
+                                        value={formInfo.dni}
+                                        onChange={(e) => setFormInfo({ ...formInfo, dni: e.target.value.replace(/\D/g, '') })}
+                                        maxLength={10}
+                                    />
+                                </div>
+                                {erroresInfo.dni && <p className="campo-error">{erroresInfo.dni}</p>}
+                                <p className="perfil-ayuda">Una vez guardado no se podrá modificar</p>
+                            </div>
+                        )}
+
                         <div className="perfil-campo">
                             <label>Nombre de usuario</label>
                             <div className="perfil-input-group">

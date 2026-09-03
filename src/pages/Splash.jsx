@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { estaLogueado } from '../services/authService';
 import './Splash.css';
 
 // Debe coincidir con el delay del fade-out final definido en Splash.css
@@ -9,8 +10,10 @@ function Splash() {
     const navigate = useNavigate();
 
     useEffect(() => {
+        // Si ya hay una sesion activa, no tiene sentido mandarlo al login
+        const destino = estaLogueado() ? '/inicio' : '/login';
         const timer = setTimeout(() => {
-            navigate('/login');
+            navigate(destino);
         }, REDIRECT_DELAY_MS);
 
         return () => clearTimeout(timer);

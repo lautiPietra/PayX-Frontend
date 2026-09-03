@@ -1,29 +1,46 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { logout } from '../services/authService';
+import { obtenerNotificaciones, marcarTodasLeidas } from '../services/notificacionService';
 import logoPayX from '../assets/payx-logo.png';
 import { IconHome, IconSettings, IconLogOut, IconBell } from './icons/Icons';
 import './Navbar.css';
 
-// Notificaciones de ejemplo: todavia no existe un endpoint para traer las notificaciones
-// del usuario logueado, asi que se usan solo para mostrar como va a quedar el panel.
-const NOTIFICACIONES_INICIALES = [
-    { id: 1, titulo: 'Transferencia recibida', detalle: 'Recibiste $ 11.500,00 de María Clara Aslan', hora: 'Hace 10 min', leida: false },
-    { id: 2, titulo: 'Pago de servicio', detalle: 'Se debitaron $ 8.300,00 para el pago de Edenor', hora: 'Hace 2 h', leida: false },
-    { id: 3, titulo: 'Nuevo inicio de sesión', detalle: 'Detectamos un inicio de sesión desde un nuevo dispositivo', hora: 'Ayer', leida: true },
-    { id: 4, titulo: 'Plazo fijo constituido', detalle: 'Tu plazo fijo se constituyó correctamente', hora: '29/08', leida: true },
-];
+// Titulo corto a mostrar segun el codigo de plantilla de la notificacion.
+const TITULOS_PLANTILLA = {
+    INICIO_SES: 'Inicio de sesión',
+};
+
+function formatearHora(fechaIso) {
+    const fecha = new Date(fechaIso);
+    return fecha.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
 
 function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
     const [menuAbierto, setMenuAbierto] = useState(false);
-    const [notificaciones, setNotificaciones] = useState(NOTIFICACIONES_INICIALES);
+    const [notificaciones, setNotificaciones] = useState([]);
     const [notificacionesAbiertas, setNotificacionesAbiertas] = useState(false);
     const notificacionesRef = useRef(null);
 
-    const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
-    const noLeidas = notificaciones.filter((n) => !n.leida).length;
+    const [usuario, setUsuario] = useState(() => JSON.parse(localStorage.getItem('usuario') || '{}'));
+    const noLeidas = notificaciones.length;
+
+    // Se actualiza cuando cambia algo del usuario guardado (ej: nueva foto de perfil
+    // desde la pantalla de Perfil), sin necesidad de recargar la pagina.
+    useEffect(() => {
+        const refrescarUsuario = () => setUsuario(JSON.parse(localStorage.getItem('usuario') || '{}'));
+        window.addEventListener('usuario-actualizado', refrescarUsuario);
+        return () => window.removeEventListener('usuario-actualizado', refrescarUsuario);
+    }, []);
+
+    // Trae las notificaciones no leidas del usuario al montar el navbar
+    useEffect(() => {
+        obtenerNotificaciones()
+            .then(setNotificaciones)
+            .catch(() => {});
+    }, []);
 
     // Cierra el panel de notificaciones al hacer clic afuera
     useEffect(() => {
@@ -37,8 +54,13 @@ function Navbar() {
         return () => document.removeEventListener('mousedown', manejarClickAfuera);
     }, [notificacionesAbiertas]);
 
-    const marcarTodasComoLeidas = () => {
-        setNotificaciones((prev) => prev.map((n) => ({ ...n, leida: true })));
+    const marcarTodasComoLeidas = async () => {
+        try {
+            await marcarTodasLeidas();
+            setNotificaciones([]);
+        } catch {
+            // Si falla, dejamos las notificaciones como estaban
+        }
     };
 
     const handleLogout = () => {
@@ -108,13 +130,16 @@ function Navbar() {
                                         )}
                                     </div>
                                     <div className="navbar-notificaciones-lista">
+                                        {notificaciones.length === 0 && (
+                                            <p className="navbar-notificaciones-vacio">No tenés notificaciones nuevas</p>
+                                        )}
                                         {notificaciones.map((n) => (
-                                            <div key={n.id} className={`navbar-notificacion-item ${n.leida ? '' : 'no-leida'}`}>
-                                                {!n.leida && <span className="navbar-notificacion-punto" />}
+                                            <div key={n.id} className="navbar-notificacion-item no-leida">
+                                                <span className="navbar-notificacion-punto" />
                                                 <div className="navbar-notificacion-texto">
-                                                    <p className="navbar-notificacion-titulo">{n.titulo}</p>
-                                                    <p className="navbar-notificacion-detalle">{n.detalle}</p>
-                                                    <span className="navbar-notificacion-hora">{n.hora}</span>
+                                                    <p className="navbar-notificacion-titulo">{TITULOS_PLANTILLA[n.plantillaCodigo] || 'Notificación'}</p>
+                                                    <p className="navbar-notificacion-detalle">{n.mensaje}</p>
+                                                    <span className="navbar-notificacion-hora">{formatearHora(n.fecha)}</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -125,7 +150,9 @@ function Navbar() {
 
                         <Link to="/perfil" className="navbar-usuario" title="Ir a mi perfil">
                             <div className="navbar-avatar">
-                                {usuario.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
+                                {usuario.fotoPerfilUrl
+                                    ? <img src={usuario.fotoPerfilUrl} alt="" />
+                                    : usuario.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
                             </div>
                             <span className="navbar-nombre">{usuario.nombreCompleto}</span>
                         </Link>
@@ -154,7 +181,9 @@ function Navbar() {
 
                     <Link to="/perfil" className="navbar-menu-usuario" onClick={cerrarMenu}>
                         <div className="navbar-avatar grande">
-                            {usuario.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
+                            {usuario.fotoPerfilUrl
+                                ? <img src={usuario.fotoPerfilUrl} alt="" />
+                                : usuario.nombreCompleto?.charAt(0)?.toUpperCase() || 'U'}
                         </div>
                         <div>
                             <p className="navbar-menu-nombre">{usuario.nombreCompleto}</p>
@@ -172,13 +201,16 @@ function Navbar() {
                             )}
                         </div>
                         <div className="navbar-notificaciones-lista">
+                            {notificaciones.length === 0 && (
+                                <p className="navbar-notificaciones-vacio">No tenés notificaciones nuevas</p>
+                            )}
                             {notificaciones.map((n) => (
-                                <div key={n.id} className={`navbar-notificacion-item ${n.leida ? '' : 'no-leida'}`}>
-                                    {!n.leida && <span className="navbar-notificacion-punto" />}
+                                <div key={n.id} className="navbar-notificacion-item no-leida">
+                                    <span className="navbar-notificacion-punto" />
                                     <div className="navbar-notificacion-texto">
-                                        <p className="navbar-notificacion-titulo">{n.titulo}</p>
-                                        <p className="navbar-notificacion-detalle">{n.detalle}</p>
-                                        <span className="navbar-notificacion-hora">{n.hora}</span>
+                                        <p className="navbar-notificacion-titulo">{TITULOS_PLANTILLA[n.plantillaCodigo] || 'Notificación'}</p>
+                                        <p className="navbar-notificacion-detalle">{n.mensaje}</p>
+                                        <span className="navbar-notificacion-hora">{formatearHora(n.fecha)}</span>
                                     </div>
                                 </div>
                             ))}
