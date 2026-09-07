@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { IconX, IconArrowLeft, IconSend, IconCheck, IconWallet, IconChevronDown } from './icons/Icons';
+import { IconX, IconArrowLeft, IconSend, IconCheck, IconWallet, IconChevronDown, IconClock, IconAlertTriangle } from './icons/Icons';
+import { crearTransferencia } from '../services/transferenciaService';
 import './TransferModal.css';
 
 const MOTIVOS = [
@@ -20,14 +21,18 @@ function formatearMonto(valor) {
 }
 
 // Pantalla completa de transferencia. "config" define si es en pesos o en dolares
-// (simbolo, saldo disponible, y si corresponde mostrar el equivalente en pesos).
-function TransferModal({ abierto, onCerrar, config }) {
+// (simbolo, saldo disponible, moneda para el backend, y si corresponde mostrar
+// el equivalente en pesos). "onExito" se llama despues de crear la transferencia
+// para que la pantalla que abrio el modal pueda refrescar saldo y actividad.
+function TransferModal({ abierto, onCerrar, config, onExito }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'exito'
     const [destinatario, setDestinatario] = useState('');
     const [monto, setMonto] = useState('');
     const [motivo, setMotivo] = useState('');
+    const [tipo, setTipo] = useState('DIRECTA'); // 'DIRECTA' | 'PENDIENTE'
     const [error, setError] = useState('');
     const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState(null);
 
     if (!abierto) return null;
 
@@ -42,8 +47,10 @@ function TransferModal({ abierto, onCerrar, config }) {
             setDestinatario('');
             setMonto('');
             setMotivo('');
+            setTipo('DIRECTA');
             setError('');
             setEnviando(false);
+            setResultado(null);
         }, 200);
     }
 
@@ -52,7 +59,7 @@ function TransferModal({ abierto, onCerrar, config }) {
         setError('');
     }
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
         setError('');
 
@@ -70,10 +77,22 @@ function TransferModal({ abierto, onCerrar, config }) {
         }
 
         setEnviando(true);
-        setTimeout(() => {
-            setEnviando(false);
+        try {
+            const creada = await crearTransferencia({
+                destinatario: destinatario.trim(),
+                moneda: config.moneda,
+                monto: montoNumero,
+                concepto: motivo || undefined,
+                tipo,
+            });
+            setResultado(creada);
             setPaso('exito');
-        }, 900);
+            onExito?.();
+        } catch (err) {
+            setError(err.response?.data?.error || 'No se pudo realizar la transferencia. Intenta de nuevo.');
+        } finally {
+            setEnviando(false);
+        }
     }
 
     return (
@@ -153,6 +172,34 @@ function TransferModal({ abierto, onCerrar, config }) {
                                         </div>
                                     </div>
 
+                                    <div className="transfer-campo">
+                                        <label>¿Cómo querés enviarla?</label>
+                                        <div className="transfer-tipo-opciones">
+                                            <button
+                                                type="button"
+                                                className={`transfer-tipo-opcion ${tipo === 'DIRECTA' ? 'activa' : ''}`}
+                                                onClick={() => setTipo('DIRECTA')}
+                                            >
+                                                <IconSend size={16} />
+                                                <div>
+                                                    <strong>Transferir ahora</strong>
+                                                    <span>Se envía al instante y no se puede deshacer</span>
+                                                </div>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className={`transfer-tipo-opcion ${tipo === 'PENDIENTE' ? 'activa' : ''}`}
+                                                onClick={() => setTipo('PENDIENTE')}
+                                            >
+                                                <IconClock size={16} />
+                                                <div>
+                                                    <strong>Dejar pendiente</strong>
+                                                    <span>No se mueve la plata hasta que vos la confirmes. Podés cancelarla mientras esté pendiente</span>
+                                                </div>
+                                            </button>
+                                        </div>
+                                    </div>
+
                                     {error && <div className="transfer-error">{error}</div>}
 
                                     <div className="transfer-modal-botones">
@@ -160,7 +207,11 @@ function TransferModal({ abierto, onCerrar, config }) {
                                             Cancelar
                                         </button>
                                         <button type="submit" className="transfer-btn-continuar" disabled={enviando}>
-                                            {enviando ? 'Procesando...' : (<><IconSend size={15} /> Transferir</>)}
+                                            {enviando ? 'Procesando...' : (
+                                                tipo === 'DIRECTA'
+                                                    ? <><IconSend size={15} /> Transferir</>
+                                                    : <><IconClock size={15} /> Dejar pendiente</>
+                                            )}
                                         </button>
                                     </div>
                                 </form>
@@ -181,8 +232,15 @@ function TransferModal({ abierto, onCerrar, config }) {
                                         </div>
                                         <div className={`transfer-resumen-fila destacado ${saldoRestante < 0 ? 'negativo' : ''}`}>
                                             <span>Saldo luego de transferir</span>
-                                            <span>{config.simbolo} {formatearMonto(saldoRestante)}</span>
+                                            <span>{config.simbolo} {formatearMonto(tipo === 'DIRECTA' ? saldoRestante : config.saldo)}</span>
                                         </div>
+
+                                        {tipo === 'PENDIENTE' && (
+                                            <div className="transfer-resumen-aviso-pendiente">
+                                                <IconAlertTriangle size={14} />
+                                                <span>No se descuenta nada hasta que confirmes la transferencia</span>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
@@ -192,12 +250,21 @@ function TransferModal({ abierto, onCerrar, config }) {
 
                     {paso === 'exito' && (
                         <div className="transfer-exito-page">
-                            <div className="transfer-exito-icono">
-                                <IconCheck size={30} />
+                            <div className={`transfer-exito-icono ${tipo === 'PENDIENTE' ? 'pendiente' : ''}`}>
+                                {tipo === 'DIRECTA' ? <IconCheck size={30} /> : <IconClock size={30} />}
                             </div>
-                            <h1 className="transfer-page-titulo">¡Transferencia realizada!</h1>
+                            <h1 className="transfer-page-titulo">
+                                {tipo === 'DIRECTA' ? '¡Transferencia realizada!' : 'Transferencia pendiente creada'}
+                            </h1>
                             <p className="transfer-exito-texto">
-                                Le transferiste <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{destinatario}</strong>
+                                {tipo === 'DIRECTA' ? (
+                                    <>Le transferiste <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatario}</strong></>
+                                ) : (
+                                    <>
+                                        Dejaste pendiente una transferencia de <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatario}</strong>.
+                                        No se descontó nada todavía: podés confirmarla o cancelarla cuando quieras desde "Consultar todas".
+                                    </>
+                                )}
                             </p>
                             {motivo && <p className="transfer-exito-concepto">{motivo}</p>}
                             <button className="transfer-btn-continuar ancho-completo" onClick={resetearYCerrar}>

@@ -194,6 +194,62 @@ Auditoría enfocada en los flujos que todavía no se habían revisado a fondo (f
 
 ---
 
+---
+
+### Feature: transferencias reales (pesos y dólares)
+
+La primera funcionalidad que mueve plata de verdad entre cuentas. Antes de implementar, se confirmó con el usuario quién confirma/cancela una transferencia "pendiente": **el emisor**, no el receptor — es como un borrador que el propio emisor despacha cuando quiere.
+
+**Backend:**
+- Nueva entidad [Transferencia.java](../PayX-backend/src/main/java/com/payx/backend/model/Transferencia.java): origen/destino (cuenta + usuario), moneda (`PESOS`/`USD`), monto, concepto, estado (`PENDIENTE`/`COMPLETADA`/`CANCELADA`), fecha y fecha de confirmación.
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java) — toda la lógica de negocio:
+  - Resuelve el destinatario por CVU (22 dígitos), `@nombreUsuario` o alias (agregado `findByCvu`/`findByAlias` a `CuentaRepository`, que antes solo tenía los `existsBy*`).
+  - Valida: cuenta origen existe (autorepara si falta, mismo patrón que el perfil), destinatario existe y está activo, no autotransferencia, saldo suficiente en la moneda elegida.
+  - **Directa**: mueve la plata en el momento (debita origen, acredita destino, ambos `save` en la misma transacción) y queda `COMPLETADA`.
+  - **Pendiente**: no toca ningún saldo — solo guarda el registro en `PENDIENTE`.
+  - **Confirmar** (`PATCH /api/transferencias/{id}/confirmar`, solo emisor): revalida el saldo (pudo cambiar desde que se creó) y recién ahí ejecuta el movimiento.
+  - **Cancelar** (`PATCH /api/transferencias/{id}/cancelar`, solo emisor): como nunca se movió plata, solo cambia el estado — no hay nada que revertir.
+  - **Cambiar concepto** (`PATCH /api/transferencias/{id}/concepto`, solo emisor, en cualquier estado): es una nota descriptiva, no afecta el dinero.
+  - Listar (`GET /api/transferencias`) y detalle (`GET /api/transferencias/{id}`) devuelven la transferencia desde la perspectiva del usuario que consulta (`direccion`: `ENVIADA`/`RECIBIDA`, `esEmisor`, datos de la contraparte).
+- `PerfilResponse` ahora incluye `saldoPesos`/`saldoUsd` reales — necesario porque el frontend mostraba un saldo inventado que ya no tenía sentido una vez que las transferencias empezaron a mover plata de verdad.
+- **10 tests unitarios nuevos** ([TransferenciaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/TransferenciaServiceTest.java)) cubriendo los invariantes financieros críticos: una pendiente nunca toca saldos hasta confirmarse, nunca se puede transferir de más (ni al crear ni al confirmar), no autotransferencia, y que confirmar/cancelar/editar concepto estén blindados a que solo el emisor pueda hacerlo — todos verificados en verde.
+- **Requiere migración manual** en Supabase (tabla `transferencias` nueva, `ddl-auto=validate` no la crea sola) — SQL entregado al usuario, incluyendo constraints `CHECK` opcionales de defensa extra (montos/saldos no negativos).
+
+**Frontend:**
+- Nuevo [transferenciaService.js](src/services/transferenciaService.js): crear, listar, obtener, actualizar concepto, confirmar, cancelar.
+- [TransferModal.jsx](src/components/TransferModal.jsx) dejó de simular con un `setTimeout`: ahora llama al backend real. Se agregó el selector "Transferir ahora" (irreversible) vs "Dejar pendiente" (con la explicación de que no se descuenta nada hasta confirmarla y se puede cancelar mientras esté pendiente) — agregado `IconClock` a [Icons.jsx](src/components/icons/Icons.jsx) porque no existía.
+- Nuevo [TransferenciaDetalleModal.jsx](src/components/TransferenciaDetalleModal.jsx): se abre al tocar cualquier movimiento. Muestra monto, contraparte, fecha, estado; si el usuario es el emisor puede cambiar el concepto (input inline) y, si está pendiente, tiene botones Confirmar/Cancelar.
+- Nuevo [ActividadItem.jsx](src/components/ActividadItem.jsx): la fila de cada transferencia, compartida entre Home y la nueva página de movimientos (evita duplicar la lógica de dirección/badges/formato).
+- Nueva página [Movimientos.jsx](src/pages/Movimientos.jsx) en `/movimientos`: lista **todas** las transferencias del usuario (enviadas y recibidas), no solo las últimas — el botón "Consultar todas" de Home ahora lleva ahí en vez de mostrar el toast de "próximamente".
+- [Home.jsx](src/pages/Home.jsx): los tabs de Pesos/Dólares ahora muestran el saldo real (`obtenerPerfil()`), no el hardcodeado de antes — se quitó el "Rindió $X en los últimos 12 meses" para esas dos monedas porque no hay ningún concepto de rendimiento real detrás (Cripto sigue siendo 100% mock, sin cambios). "Últimas actividades" muestra las transferencias reales más recientes, cada una clickeable para abrir el detalle. Después de una transferencia exitosa o de confirmar/cancelar una pendiente, se refresca automáticamente el saldo y la lista.
+- Nota de lint: `eslint-plugin-react-hooks` v7 (recién instalado, trae reglas experimentales del React Compiler) marcaba como error llamar una función async con `setState` adentro directamente en el `useEffect` de montaje de Home — se resolvió usando el mismo patrón de `promise.then(setState)` que ya pasaba limpio en `Navbar.jsx`, sin tocar las funciones reusadas en otros callbacks (que sí podían seguir llamándose directo).
+
+**Pendiente del usuario:** correr la migración SQL de la tabla `transferencias`, y cargar saldo de prueba a mano en al menos dos cuentas (las cuentas nuevas arrancan en $0 — no existe todavía una feature de "depósito", no fue pedida).
+
+---
+
+### Corrección: se reutiliza la tabla `transacciones` ya existente en vez de crear `transferencias`
+
+El usuario avisó que ya existía una tabla `transacciones` en la base (columnas: `id, cuenta_origen_id, cuenta_destino_id, monto, moneda, tipo_transaccion, estado, descripcion, fecha_creacion`) — pensada exactamente para esto. Se adaptó todo el backend de transferencias para usar esa tabla en vez de crear una nueva `transferencias` (evita tener dos tablas de movimientos de plata en paralelo):
+
+- [Transferencia.java](../PayX-backend/src/main/java/com/payx/backend/model/Transferencia.java) (la clase Java conserva el nombre, solo cambia el mapeo): `@Table(name = "transacciones")`; `concepto` → columna `descripcion`; `fecha` → columna `fecha_creacion`; se agregó el campo `tipo` mapeado a `tipo_transaccion` (antes el tipo DIRECTA/PENDIENTE no se persistía en ningún lado). Se eliminaron los campos `usuarioOrigenId`/`usuarioDestinoId`: esa tabla no los tiene, y son redundantes — se derivan siempre desde `cuenta_origen_id`/`cuenta_destino_id` haciendo join contra `cuentas.usuario_id`.
+- [TransferenciaRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/TransferenciaRepository.java): `buscarPorUsuario` ahora resuelve el usuario con una subquery contra `Cuenta` en vez de comparar un campo directo.
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java): todos los chequeos de "¿quién es el dueño/emisor de esta transferencia?" (`obtenerYValidarPropiedad`, `perteneceAlUsuario`, `mapearConContraparte`) ahora cargan la `Cuenta` correspondiente y comparan `cuenta.getUsuarioId()`, en vez de leer un campo ya resuelto en la entidad.
+- [TransferenciaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/TransferenciaServiceTest.java): reescritos los tests que armaban una `Transferencia` a mano para que en vez de `setUsuarioOrigenId`/`setUsuarioDestinoId` seteen `cuentaOrigenId`/`cuentaDestinoId` y mockeen `cuentaRepository.findById(...)`. Los 10 tests siguen pasando (`gradlew test --tests TransferenciaServiceTest` → 10/10, 0 failures).
+
+**Migración pendiente actualizada (mucho más chica que la original, la tabla base ya existe):**
+```sql
+ALTER TABLE transacciones ADD COLUMN fecha_confirmacion TIMESTAMPTZ;
+
+-- Recomendado (defensa extra, no obligatorio):
+ALTER TABLE transacciones ADD CONSTRAINT monto_positivo CHECK (monto > 0);
+ALTER TABLE cuentas ADD CONSTRAINT saldo_pesos_no_negativo CHECK (saldo_pesos >= 0);
+ALTER TABLE cuentas ADD CONSTRAINT saldo_usd_no_negativo CHECK (saldo_usd >= 0);
+```
+Sigue haciendo falta cargar saldo de prueba a mano en al menos dos cuentas para probar transferencias entre sí.
+
+---
+
 #### Cosas que se revisaron y están bien (sin cambios)
 - Inyección SQL: no hay riesgo — todas las queries usan JPA/Hibernate parametrizado (incluida la búsqueda de plantillas con `LIKE`).
 - XSS: no hay ningún `dangerouslySetInnerHTML` ni `innerHTML` en todo el frontend; React escapa todo por defecto.

@@ -363,6 +363,42 @@
     background-color: #fafafa;
 }
 
+.home-actividad-item.clickeable {
+    cursor: pointer;
+}
+
+.home-actividad-vacio {
+    padding: 32px 20px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: 14px;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    margin: 0;
+}
+
+.home-actividad-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.home-actividad-badge.pendiente {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.home-actividad-badge.cancelada {
+    background-color: #f3f4f6;
+    color: #6b7280;
+}
+
 .home-actividad-icono {
     width: 38px;
     height: 38px;

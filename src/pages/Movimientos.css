@@ -1,0 +1,47 @@
+.movimientos-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 24px 60px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.movimientos-volver {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    padding: 8px 0;
+    margin-bottom: 16px;
+    font-family: inherit;
+    transition: color 0.2s;
+}
+
+.movimientos-volver:hover {
+    color: #1a1a1a;
+}
+
+.movimientos-titulo {
+    font-size: 26px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0 0 4px;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.02em;
+}
+
+.movimientos-subtitulo {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0 0 24px;
+}
+
+.movimientos-cargando {
+    text-align: center;
+    color: #9ca3af;
+    padding: 40px 0;
+}

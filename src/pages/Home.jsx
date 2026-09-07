@@ -1,9 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import TransferModal from '../components/TransferModal';
 import PlazoFijoModal from '../components/PlazoFijoModal';
 import CambioDolaresModal from '../components/CambioDolaresModal';
 import CriptoModal from '../components/CriptoModal';
+import ActividadItem from '../components/ActividadItem';
+import TransferenciaDetalleModal from '../components/TransferenciaDetalleModal';
+import { obtenerPerfil } from '../services/perfilService';
+import { listarTransferencias } from '../services/transferenciaService';
 import {
     IconSend, IconQrCode, IconPiggyBank,
     IconDollarSign, IconArrowDownCircle, IconArrowUpCircle, IconCoins,
@@ -17,13 +22,8 @@ const COTIZACION_USD = 1250;
 const COTIZACION_COMPRA_USD = 1265;
 const COTIZACION_VENTA_USD = 1235;
 
-// Datos de ejemplo: todavia no existe un endpoint de saldo/movimientos en el backend.
-// Se usan solo para mostrar como va a quedar la pantalla.
-const MONEDAS = [
-    { key: 'pesos', label: 'Pesos', simbolo: '$', saldo: 20025.44, rendimiento: 2218.20 },
-    { key: 'dolares', label: 'Dólares', simbolo: 'US$', saldo: 148.30, rendimiento: 4.12 },
-    { key: 'cripto', label: 'Cripto', simbolo: '$', saldo: 5310.00, rendimiento: 612.75 },
-];
+// Cripto todavia no tiene backend (ni saldo ni compra/venta reales): sigue siendo mock.
+const SALDO_CRIPTO_MOCK = { saldo: 5310.00, rendimiento: 612.75 };
 
 const ACCIONES_GENERALES = [
     { label: 'Transferir', Icon: IconSend, accion: 'transferir-pesos' },
@@ -40,20 +40,18 @@ const ACCIONES_INVERSION = [
     { label: 'Vender criptomonedas', Icon: IconCoins, accion: 'vender-cripto' },
 ];
 
-const ACTIVIDAD = [
-    { id: 1, titulo: 'Transferencia recibida', detalle: 'De Maria Clara Aslan', hora: '09:56', monto: 11500, positivo: true },
-    { id: 2, titulo: 'Pago de servicio', detalle: 'Edenor', hora: '09:20', monto: 8300, positivo: false },
-    { id: 3, titulo: 'Transferencia enviada', detalle: 'A Juan Perez', hora: 'Ayer', monto: 4200, positivo: false },
-    { id: 4, titulo: 'Ingreso de dinero', detalle: 'Con tarjeta', hora: '29/08', monto: 25000, positivo: true },
-];
-
 function formatearMonto(valor) {
     return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function Home() {
+    const navigate = useNavigate();
     const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
     const primerNombre = usuario.nombreCompleto?.split(' ')[0] || 'de nuevo';
+
+    const [perfil, setPerfil] = useState(null);
+    const [transferencias, setTransferencias] = useState([]);
+    const [detalleActivo, setDetalleActivo] = useState(null);
 
     const [monedaActiva, setMonedaActiva] = useState('pesos');
     const [saldoVisible, setSaldoVisible] = useState(true);
@@ -65,14 +63,21 @@ function Home() {
     const [cambioDolaresActivo, setCambioDolaresActivo] = useState(null); // null | 'compra' | 'venta'
     const [cambioCriptoActivo, setCambioCriptoActivo] = useState(null); // null | 'compra' | 'venta'
 
+    const saldoPesos = Number(perfil?.saldoPesos ?? 0);
+    const saldoDolares = Number(perfil?.saldoUsd ?? 0);
+
+    const MONEDAS = [
+        { key: 'pesos', label: 'Pesos', simbolo: '$', saldo: saldoPesos },
+        { key: 'dolares', label: 'Dólares', simbolo: 'US$', saldo: saldoDolares },
+        { key: 'cripto', label: 'Cripto', simbolo: '$', ...SALDO_CRIPTO_MOCK },
+    ];
     const monedaData = MONEDAS.find((m) => m.key === monedaActiva);
-    const saldoPesos = MONEDAS.find((m) => m.key === 'pesos').saldo;
-    const saldoDolares = MONEDAS.find((m) => m.key === 'dolares').saldo;
 
     const configModalPesos = {
         titulo: 'Transferir dinero',
         simbolo: '$',
         saldo: saldoPesos,
+        moneda: 'PESOS',
         placeholderDestinatario: 'CVU, alias o @usuario',
         mostrarEquivalente: false,
     };
@@ -81,6 +86,7 @@ function Home() {
         titulo: 'Transferencia en dólares',
         simbolo: 'US$',
         saldo: saldoDolares,
+        moneda: 'USD',
         placeholderDestinatario: 'CVU, alias o @usuario',
         mostrarEquivalente: true,
         cotizacion: COTIZACION_USD,
@@ -120,6 +126,35 @@ function Home() {
         IconBoton: IconArrowUpCircle,
     };
 
+    const cargarPerfil = async () => {
+        try {
+            const datos = await obtenerPerfil();
+            setPerfil(datos);
+        } catch {
+            // si falla, se mantiene el ultimo saldo conocido (o 0 la primera vez)
+        }
+    };
+
+    const cargarTransferencias = async () => {
+        try {
+            const datos = await listarTransferencias();
+            setTransferencias(datos);
+        } catch {
+            // si falla, se muestra la lista vacia
+        }
+    };
+
+    const cargarDatosTrasTransferencia = () => {
+        cargarPerfil();
+        cargarTransferencias();
+    };
+
+    // Carga inicial de saldo real (pesos/dolares) y de las transferencias del usuario
+    useEffect(() => {
+        obtenerPerfil().then(setPerfil).catch(() => {});
+        listarTransferencias().then(setTransferencias).catch(() => {});
+    }, []);
+
     // Animacion de conteo del saldo al montar o cambiar de moneda
     useEffect(() => {
         let frame;
@@ -153,6 +188,12 @@ function Home() {
         if (accion === 'comprar-cripto') { setCambioCriptoActivo('compra'); return; }
         if (accion === 'vender-cripto') { setCambioCriptoActivo('venta'); return; }
         mostrarProximamente();
+    };
+
+    const manejarTransferenciaActualizada = (actualizada) => {
+        setTransferencias((prev) => prev.map((t) => (t.id === actualizada.id ? actualizada : t)));
+        setDetalleActivo(actualizada);
+        cargarPerfil(); // confirmar una pendiente mueve plata: refrescamos el saldo
     };
 
     useEffect(() => () => clearTimeout(avisoTimeoutRef.current), []);
@@ -202,13 +243,13 @@ function Home() {
                                 <button className="home-btn-primario" onClick={() => setModalActivo('pesos')}>
                                     <IconSend size={16} /> Transferir
                                 </button>
-                                <button className="home-btn-secundario" onClick={mostrarProximamente}>
+                                <button className="home-btn-secundario" onClick={() => navigate('/movimientos')}>
                                     Ver movimientos
                                 </button>
                             </div>
                         </div>
 
-                        {saldoVisible && (
+                        {saldoVisible && monedaData.rendimiento != null && (
                             <p className="home-rendimiento">
                                 Rindió <strong>{monedaData.simbolo} {formatearMonto(monedaData.rendimiento)}</strong> en los últimos 12 meses
                             </p>
@@ -263,28 +304,17 @@ function Home() {
                 {/* Actividad reciente */}
                 <div className="home-actividad-header">
                     <h2 className="home-seccion-titulo">Últimas actividades</h2>
-                    <button className="home-link-consultar" onClick={mostrarProximamente}>
+                    <button className="home-link-consultar" onClick={() => navigate('/movimientos')}>
                         Consultar todas →
                     </button>
                 </div>
 
                 <div className="home-actividad-lista">
-                    {ACTIVIDAD.map((item) => (
-                        <div key={item.id} className="home-actividad-item">
-                            <div className={`home-actividad-icono ${item.positivo ? 'positivo' : 'negativo'}`}>
-                                {item.positivo ? <IconArrowDownCircle size={18} /> : <IconArrowUpCircle size={18} />}
-                            </div>
-                            <div className="home-actividad-info">
-                                <p className="home-actividad-titulo">{item.titulo}</p>
-                                <p className="home-actividad-detalle">{item.detalle}</p>
-                            </div>
-                            <div className="home-actividad-derecha">
-                                <span className="home-actividad-hora">{item.hora}</span>
-                                <span className={`home-actividad-monto ${item.positivo ? 'positivo' : 'negativo'}`}>
-                                    {item.positivo ? '+' : '-'}${formatearMonto(item.monto)}
-                                </span>
-                            </div>
-                        </div>
+                    {transferencias.length === 0 && (
+                        <p className="home-actividad-vacio">Todavía no tenés movimientos</p>
+                    )}
+                    {transferencias.slice(0, 4).map((t) => (
+                        <ActividadItem key={t.id} transferencia={t} onClick={() => setDetalleActivo(t)} />
                     ))}
                 </div>
 
@@ -296,11 +326,13 @@ function Home() {
                 abierto={modalActivo === 'pesos'}
                 onCerrar={() => setModalActivo(null)}
                 config={configModalPesos}
+                onExito={cargarDatosTrasTransferencia}
             />
             <TransferModal
                 abierto={modalActivo === 'dolares'}
                 onCerrar={() => setModalActivo(null)}
                 config={configModalDolares}
+                onExito={cargarDatosTrasTransferencia}
             />
             <PlazoFijoModal
                 abierto={plazoFijoAbierto}
@@ -328,6 +360,12 @@ function Home() {
                 onCerrar={() => setCambioCriptoActivo(null)}
                 tipo="venta"
                 saldoPesos={saldoPesos}
+            />
+
+            <TransferenciaDetalleModal
+                transferencia={detalleActivo}
+                onCerrar={() => setDetalleActivo(null)}
+                onActualizada={manejarTransferenciaActualizada}
             />
         </>
     );
