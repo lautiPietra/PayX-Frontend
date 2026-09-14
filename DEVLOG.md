@@ -257,3 +257,113 @@ Sigue haciendo falta cargar saldo de prueba a mano en al menos dos cuentas para 
 - IDOR: `PerfilController`/`NotificacionController` identifican al usuario siempre por el JWT (`@AuthenticationPrincipal`/`Authentication.getName()`), nunca por un ID que venga del cliente — no hay forma de pedir el perfil o las notificaciones de otro usuario. `AdminController` sí recibe un `id` de usuario objetivo por path, pero está correctamente gateado por `validarAdmin`.
 
 ---
+
+### Paso de confirmación antes de transferir + fix de botón "Listo"
+
+- Nuevo endpoint `GET /api/transferencias/destinatario?valor=...` ([TransferenciaController.java](../PayX-backend/src/main/java/com/payx/backend/controller/TransferenciaController.java), [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java)): resuelve CVU/alias/@usuario a nombre completo + alias + CVU sin crear nada. Se extrajo la validación de destino (existe, no es uno mismo, está activo) a un método privado compartido (`resolverYValidarDestino`) entre crear la transferencia y esta nueva consulta.
+- [TransferModal.jsx](src/components/TransferModal.jsx): al tocar "Continuar" ya no se transfiere directo — primero se resuelve el destinatario contra el backend y se muestra una pantalla de confirmación (`paso === 'confirmar'`) con nombre completo, alias, CVU, monto, motivo y tipo de envío. Desde ahí "Editar" vuelve al formulario sin perder los datos, y "Confirmar transferencia" recién ahí ejecuta `crearTransferencia`.
+- Fix: el botón "Listo" de la pantalla de éxito quedaba pegado a la izquierda en vez de centrado (dependía de `text-align: center` sobre un botón que en algunos casos no se comporta como inline-block) — se cambió a `display: block; margin: 0 auto` en [TransferModal.css](src/components/TransferModal.css), que centra sin importar el `display` real del botón.
+
+---
+
+### Fix: transferencia cancelada se mostraba como "recibida" con monto en verde
+
+Al cancelar una transferencia pendiente, la contraparte (quien la iba a recibir) veía el modal de detalle diciendo "Transferencia recibida" con el monto en verde y signo `+`, como si la plata efectivamente se hubiera acreditado, y solo debajo aparecía un badge separado diciendo "Cancelada" — confuso, parecía contradictorio.
+
+- [TransferenciaDetalleModal.jsx](src/components/TransferenciaDetalleModal.jsx) y [ActividadItem.jsx](src/components/ActividadItem.jsx): cuando `estado === 'CANCELADA'`, el título pasa a decir directamente "Transferencia cancelada" (en rojo, sin el badge separado que quedaba redundante), y el monto se muestra sin signo `+`/`-`, en gris y tachado, en vez de verde/negro como si fuera un movimiento real.
+- Estilos nuevos en [TransferenciaDetalleModal.css](src/components/TransferenciaDetalleModal.css) y [Home.css](src/pages/Home.css): `.detalle-titulo.cancelada`, `.detalle-monto.cancelada`, `.home-actividad-titulo.cancelada`, `.home-actividad-monto.cancelada`, `.home-actividad-icono.cancelada` (ícono X en rojo en vez del ícono de flecha verde/gris). Se eliminó el badge `.cancelada` que quedó sin uso en ambos componentes.
+
+---
+
+### Feature: autocompletado de contactos + notificaciones de transferencias
+
+**Autocompletado de destinatarios ya usados:**
+- [Home.jsx](src/pages/Home.jsx): se calcula `contactosFrecuentes` a partir del historial de transferencias ya cargado (`transferencias.filter(direccion === 'ENVIADA')`, deduplicado por alias, más reciente primero ya que el listado viene ordenado por fecha desde el backend) — no hizo falta ningún endpoint nuevo.
+- [TransferModal.jsx](src/components/TransferModal.jsx) recibe ese array como prop `contactos` y muestra un dropdown debajo del campo "¿A quién le transferís?": con el campo vacío y en foco sugiere los últimos contactos usados, y a medida que se escribe filtra por alias que empiecen con el texto ingresado (`startsWith`, no contiene). Estilos nuevos en [TransferModal.css](src/components/TransferModal.css) (`.transfer-sugerencias`, `.transfer-sugerencia-item`).
+
+**Notificaciones de transferencia enviada/recibida:**
+- Se descubrió que el formulario de alta de plantillas ([AltaPlantilla.jsx](src/pages/AltaPlantilla.jsx)) ya le sugiere al admin usar variables `{{usuario}}`, `{{monto}}`, `{{fecha}}`, `{{cuenta}}` en el mensaje base, pero el backend nunca las reemplazaba — la única notificación que existía (`INICIO_SES`, login) solo concatenaba texto plano. Se implementó el reemplazo real de esas variables en [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java) (`notificarTransferencia` + `reemplazarVariables`), quedando disponible para cualquier plantilla futura, no solo para transferencias.
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java): nuevo método privado `notificarMovimiento(cuentaOrigen, cuentaDestino, moneda, monto)`, llamado justo después de que la plata realmente se mueve — en `crearTransferencia` para las directas, y en `confirmarTransferencia` cuando se confirma una pendiente (nunca al crear una pendiente, porque ahí todavía no pasó nada). Dispara dos notificaciones por movimiento: `TRANSFERENCIA_ENVIADA` al emisor (con `{{usuario}}`/`{{cuenta}}` de la contraparte destino) y `TRANSFERENCIA_RECIBIDA` al receptor (con los datos del origen).
+- [Navbar.jsx](src/components/Navbar.jsx): se agregaron `TRANSFERENCIA_ENVIADA`/`TRANSFERENCIA_RECIBIDA` al mapa `TITULOS_PLANTILLA` para que se vea un título corto en vez de "Notificación" genérico.
+- [TransferenciaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/TransferenciaServiceTest.java): se agregó el mock de `NotificacionService` (los 10 tests existentes siguen pasando; no verifican las notificaciones en sí, solo que no rompan el flujo).
+
+**Pendiente del usuario:** como las plantillas de notificación son un recurso de administración (CRUD manejado íntegramente desde la app, no por SQL), hay que crear estas dos filas desde el Panel de Administración → Plantillas → Nueva plantilla:
+
+| Campo | TRANSFERENCIA_ENVIADA | TRANSFERENCIA_RECIBIDA |
+|---|---|---|
+| Código | `TRANSFERENCIA_ENVIADA` | `TRANSFERENCIA_RECIBIDA` |
+| Nombre | Transferencia enviada | Transferencia recibida |
+| Mensaje base | `Le transferiste {{monto}} a {{usuario}} ({{cuenta}})` | `Recibiste {{monto}} de {{usuario}} ({{cuenta}})` |
+| Requiere origen | No | No |
+| Requiere destino | No | No |
+
+(Los checkboxes "Requiere origen/destino" son metadata informativa para el admin sobre qué datos usa la plantilla — el reemplazo de `{{usuario}}`/`{{cuenta}}` funciona independientemente de esos checkboxes.) Si no se crean, o quedan desactivadas, las transferencias van a seguir funcionando igual: simplemente no se genera la notificación.
+
+---
+
+### Fix: la campanita no se actualizaba sola después de transferir
+
+El `Navbar` solo pedía las notificaciones una vez, al montarse (`useEffect` vacío) — como transferir no cambia de página, nunca se volvían a pedir y había que refrescar el navegador para verlas.
+
+- [Navbar.jsx](src/components/Navbar.jsx): se agregó un listener del evento `notificaciones-actualizadas` (mismo patrón ya usado para refrescar el avatar con `usuario-actualizado`) que vuelve a pedir las notificaciones sin recargar la página.
+- [Home.jsx](src/pages/Home.jsx) y [Movimientos.jsx](src/pages/Movimientos.jsx): disparan ese evento después de crear una transferencia directa y después de confirmar una pendiente (los dos momentos en que el backend puede haber generado una notificación nueva).
+
+---
+
+### Feature: actualización automática cuando la otra parte confirma/cancela (polling)
+
+El fix anterior solo cubría acciones propias (dentro de la misma pestaña, vía evento del navegador). Faltaba el caso de que **otro usuario** confirme o cancele una transferencia pendiente que tenés con él: tu navegador no tiene forma de enterarse solo de algo que pasó en otra sesión sin preguntarle al backend de tanto en tanto. Se evaluaron dos enfoques (polling vs. WebSockets) y, dado el tamaño del proyecto y que ya usa este mismo criterio para el rate limiter (todo en memoria, una sola instancia, sin infraestructura de tiempo real), se eligió **polling cada 15 segundos** en vez de agregar una dependencia y una superficie de seguridad nuevas (autenticación JWT sobre WebSocket) para este alcance.
+
+- [Navbar.jsx](src/components/Navbar.jsx): además del fetch al montar y el evento `notificaciones-actualizadas`, ahora re-pide las notificaciones cada 15s con `setInterval` (se limpia al desmontar).
+- [Home.jsx](src/pages/Home.jsx): nuevo `useEffect` que llama a `cargarPerfil`/`cargarTransferencias` cada 15s. `cargarTransferencias` ahora también sincroniza `detalleActivo` con los datos frescos (si tenías el detalle de una transferencia abierto y la otra parte la confirmó/canceló mientras la mirabas, se actualiza sola).
+- [Movimientos.jsx](src/pages/Movimientos.jsx): mismo polling cada 15s, pero con una función separada (`refrescarSilencioso`) que no toca el estado `cargando` — evita que la lista completa se reemplace por el cartel de "Cargando movimientos..." en cada refresco de fondo.
+
+**Limitación conocida:** con polling, la demora máxima para ver el cambio es de hasta 15 segundos (no instantáneo). Si en el futuro se necesita tiempo real de verdad, la alternativa es WebSockets (evaluada y descartada por ahora por complejidad/alcance).
+
+---
+
+### Fix de performance: "Últimas actividades" y el historial tardaban mucho
+
+La causa real no eran los índices (la tabla `transacciones` tiene pocas filas todavía) sino un problema clásico de **N+1 consultas**: `listarMisTransferencias` traía la lista de transferencias con 1 consulta, pero después, **por cada transferencia**, volvía a pegarle a la base 2-3 veces más (`mapearConContraparte` buscaba la cuenta origen, la cuenta destino, y el usuario de la contraparte, todo por separado). Con 20-30 movimientos eso son 60-90 consultas secuenciales contra una base remota (Supabase) — cada una con su latencia de red — en vez de una sola vez.
+
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java): `listarMisTransferencias` ahora junta todos los IDs de cuenta involucrados en la lista completa y los trae de una sola vez con `cuentaRepository.findAllById(...)`, arma un mapa `Map<UUID, Cuenta>`, hace lo mismo para los usuarios (`Map<UUID, String>` con los nombres), y arma las respuestas en memoria a partir de esos mapas. Quedan **3 consultas en total sin importar cuántas transferencias haya**, en vez de `1 + 3N`. Se agregó una segunda versión de `mapearConContraparte` que recibe esos mapas ya cargados (la versión original, con consultas individuales, se mantuvo para las operaciones sobre una sola transferencia — confirmar/cancelar/editar/obtener — donde no hay ningún N+1 que evitar).
+- [TransferenciaRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/TransferenciaRepository.java): de paso, `buscarPorUsuario` (que hacía una subquery correlacionada contra `cuentas` dos veces) se simplificó a `buscarPorCuenta`, que compara directo contra `cuenta_origen_id`/`cuenta_destino_id` — cada usuario tiene una sola cuenta, así que no hacía falta la subquery, y una comparación directa aprovecha mucho mejor un índice.
+- [TransferenciaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/TransferenciaServiceTest.java): nuevo test que verifica que, con dos transferencias en la lista, `cuentaRepository.findAllById`/`usuarioRepository.findAllById` se llaman **una sola vez** cada uno (no una vez por transferencia), además de que los datos de la contraparte se resuelven bien tanto para la enviada como para la recibida.
+
+**Pendiente del usuario (índices, como se pidió):** aunque la mejora principal ya está en el código, corré esto en Supabase — son gratis en escritura a este volumen y dejan la búsqueda preparada para cuando haya muchas más filas:
+```sql
+CREATE INDEX IF NOT EXISTS idx_transacciones_cuenta_origen ON transacciones (cuenta_origen_id);
+CREATE INDEX IF NOT EXISTS idx_transacciones_cuenta_destino ON transacciones (cuenta_destino_id);
+CREATE INDEX IF NOT EXISTS idx_cuentas_usuario_id ON cuentas (usuario_id);
+CREATE INDEX IF NOT EXISTS idx_notificaciones_usuario_id ON notificaciones_usuario (usuario_id);
+```
+
+---
+
+### Auditoría a fondo de transferencias: bugs de concurrencia y seguridad
+
+Se revisó toda la función de transferencias buscando activamente formas de romperla (condiciones de carrera, doble gasto, enumeración de usuarios, validaciones faltantes). El hallazgo más serio: **no había ningún bloqueo al leer/escribir saldos**, lo que permitía duplicar plata con dos transferencias simultáneas desde la misma cuenta.
+
+**1. CRÍTICO — Doble gasto por condición de carrera (race condition):**
+Sin ningún lock, dos transferencias DIRECTAS simultáneas desde la misma cuenta podían las dos leer el mismo saldo (ej: $100), las dos validar que $80 alcanzaba, y las dos descontar "en paralelo" — el resultado final era saldo $20 (no -$60), pero **los dos destinatarios recibían $80 igual**: se creaban $80 de la nada. Esto era explotable con un simple doble-click rápido, sin necesitar herramientas especiales.
+
+- [CuentaRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/CuentaRepository.java): nuevo `findByIdConLock` con `@Lock(PESSIMISTIC_WRITE)` (`SELECT ... FOR UPDATE`).
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java): nuevo helper `bloquearCuentas` que bloquea ambas cuentas (origen y destino) **siempre en el mismo orden** (comparando UUIDs), sin importar cuál es cuál. Esto es necesario para evitar un deadlock: si dos transferencias simultáneas mueven plata entre las mismas dos cuentas en sentidos opuestos y cada una bloqueara "origen primero, destino después", podrían esperarse mutuamente para siempre. Se usa en `crearTransferencia` (directa) y `confirmarTransferencia`, revalidando el saldo *después* de bloquear (el chequeo de saldo original se mantiene además, como feedback rápido antes de llegar a bloquear nada).
+
+**2. Mismo problema, sobre la fila de la transferencia:** dos clicks simultáneos en "Confirmar" y "Cancelar" (o el mismo botón dos veces) podían las dos pasar el chequeo de `estado === PENDIENTE` antes de que la otra terminara, resultando en plata movida pero la transferencia marcada CANCELADA (o plata movida dos veces). Se agregó `TransferenciaRepository.findByIdConLock` (mismo mecanismo) y ahora `obtenerYValidarPropiedad` bloquea la fila: la segunda solicitud espera a que la primera termine y al releer el estado ya actualizado se rechaza sola.
+
+**3. Enumeración de usuarios sin límite de tasa:** el endpoint `GET /api/transferencias/destinatario` (agregado la sesión pasada) no tenía ningún rate limit — cualquier usuario logueado podía probar miles de alias/CVU/@usuario por minuto y armarse una lista de nombres completos de otros usuarios. Se corrigió [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): la clave del límite ahora incluye el método HTTP (antes solo usaba el path, y `/api/transferencias` es a la vez el listado por GET —pooleado cada 15s— y la creación por POST, así que no se podía limitar uno sin frenar el otro). Se agregaron límites de 20/min para `GET /api/transferencias/destinatario` y `POST /api/transferencias` (esto último también frena el spam de transferencias pendientes hacia otro usuario).
+
+**4. Búsqueda de alias/@usuario sensible a mayúsculas:** los alias se generan siempre en minúscula, pero si alguien tipeaba `Laura.Bonino.PAYX` (con mayúsculas) la búsqueda fallaba con "no encontramos ninguna cuenta" aunque el alias fuera el correcto. Se agregaron `findByAliasIgnoreCase` y `findByNombreUsuarioIgnoreCase`, usados en `resolverCuentaDestino`.
+
+**5. El destinatario podía ser dado de baja mientras una transferencia quedaba pendiente:** si el usuario que iba a recibir una transferencia PENDIENTE era desactivado (baneado) antes de que el emisor la confirmara, `confirmarTransferencia` igual le movía la plata. Ahora revalida `usuario.getActivo()` del destinatario al confirmar, no solo al crear.
+
+**6. Una notificación fallida podía revertir una transferencia válida:** `notificarMovimiento` corre dentro de la misma transacción que ya movió la plata; si `notificacionService` fallara por lo que sea (un bug futuro, una plantilla mal configurada), `@Transactional` iba a hacer rollback de **toda la transferencia**, plata ya movida incluida, por un problema en un efecto secundario no crítico. Ahora está envuelta en try/catch con logging (`@Slf4j`), primer uso de logging estructurado en el backend.
+
+**7. Validaciones de entrada faltantes:** `monto` no tenía límite de dígitos/decimales (`@Digits(integer=13, fraction=2)`, coincide exactamente con la columna `NUMERIC(15,2)`) y `destinatario` no tenía límite de longitud (`@Size(max=60)`) — ninguno de los dos rompía nada gracias a los chequeos de saldo existentes, pero mandaban errores feos (excepciones de Postgres) en vez de un 400 prolijo.
+
+**Verificación:** se reescribieron los mocks de los tests existentes para reflejar los nuevos locks, se agregó un test nuevo (`noSePuedeConfirmarSiElDestinatarioFueDadoDeBaja`) — **12/12 tests pasan**, `PayxBackendApplicationTests` (carga completa del contexto de Spring, valida que las queries JPQL de los locks compilen contra el esquema real) también pasa.
+
+No se pudo escribir un test que reproduzca la condición de carrera en sí (los mocks de Mockito no simulan bloqueos reales de base de datos; haría falta un test de integración contra una base real, que este proyecto no tiene configurado) — la corrección se verificó por lectura de código y por el comportamiento correcto ya cubierto en los tests existentes (revalidación de saldo, chequeo de propiedad, etc.).
+
+---

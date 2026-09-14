@@ -9,6 +9,8 @@ import './Navbar.css';
 // Titulo corto a mostrar segun el codigo de plantilla de la notificacion.
 const TITULOS_PLANTILLA = {
     INICIO_SES: 'Inicio de sesión',
+    TRANSFERENCIA_ENVIADA: 'Transferencia enviada',
+    TRANSFERENCIA_RECIBIDA: 'Transferencia recibida',
 };
 
 function formatearHora(fechaIso) {
@@ -35,11 +37,21 @@ function Navbar() {
         return () => window.removeEventListener('usuario-actualizado', refrescarUsuario);
     }, []);
 
-    // Trae las notificaciones no leidas del usuario al montar el navbar
+    // Trae las notificaciones no leidas del usuario al montar el navbar, cada vez que
+    // se dispara este evento (ej: recien se envio/confirmo una transferencia propia),
+    // y ademas cada 15s por polling: si OTRO usuario confirma/cancela algo con vos,
+    // no hay forma de que tu navegador se entere solo sin preguntarle al backend.
     useEffect(() => {
-        obtenerNotificaciones()
-            .then(setNotificaciones)
-            .catch(() => {});
+        const cargarNotificaciones = () => {
+            obtenerNotificaciones().then(setNotificaciones).catch(() => {});
+        };
+        cargarNotificaciones();
+        window.addEventListener('notificaciones-actualizadas', cargarNotificaciones);
+        const intervalo = setInterval(cargarNotificaciones, 15000);
+        return () => {
+            window.removeEventListener('notificaciones-actualizadas', cargarNotificaciones);
+            clearInterval(intervalo);
+        };
     }, []);
 
     // Cierra el panel de notificaciones al hacer clic afuera

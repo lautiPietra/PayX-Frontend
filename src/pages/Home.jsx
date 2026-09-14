@@ -66,6 +66,19 @@ function Home() {
     const saldoPesos = Number(perfil?.saldoPesos ?? 0);
     const saldoDolares = Number(perfil?.saldoUsd ?? 0);
 
+    // Alias a los que ya se les transfirio, mas reciente primero y sin repetidos,
+    // para sugerirlos en el modal de transferencia y no tener que escribirlos de nuevo.
+    const contactosFrecuentes = (() => {
+        const vistos = new Set();
+        const contactos = [];
+        for (const t of transferencias) {
+            if (t.direccion !== 'ENVIADA' || vistos.has(t.contraparteAlias)) continue;
+            vistos.add(t.contraparteAlias);
+            contactos.push({ alias: t.contraparteAlias, nombre: t.contraparteNombre });
+        }
+        return contactos;
+    })();
+
     const MONEDAS = [
         { key: 'pesos', label: 'Pesos', simbolo: '$', saldo: saldoPesos },
         { key: 'dolares', label: 'Dólares', simbolo: 'US$', saldo: saldoDolares },
@@ -139,6 +152,9 @@ function Home() {
         try {
             const datos = await listarTransferencias();
             setTransferencias(datos);
+            // Si hay un detalle abierto, lo actualiza con la version fresca (por si
+            // la otra parte lo confirmo/cancelo mientras lo estabas mirando)
+            setDetalleActivo((actual) => (actual ? datos.find((t) => t.id === actual.id) || actual : actual));
         } catch {
             // si falla, se muestra la lista vacia
         }
@@ -147,12 +163,25 @@ function Home() {
     const cargarDatosTrasTransferencia = () => {
         cargarPerfil();
         cargarTransferencias();
+        // Una transferencia directa genera notificaciones (enviada/recibida) al instante
+        window.dispatchEvent(new Event('notificaciones-actualizadas'));
     };
 
     // Carga inicial de saldo real (pesos/dolares) y de las transferencias del usuario
     useEffect(() => {
         obtenerPerfil().then(setPerfil).catch(() => {});
         listarTransferencias().then(setTransferencias).catch(() => {});
+    }, []);
+
+    // Polling: si otro usuario confirma o cancela una transferencia pendiente que
+    // tenes con el, tu cuenta no tiene forma de enterarse sola sin preguntarle al
+    // backend de tanto en tanto (no hay websockets en este proyecto).
+    useEffect(() => {
+        const intervalo = setInterval(() => {
+            cargarPerfil();
+            cargarTransferencias();
+        }, 15000);
+        return () => clearInterval(intervalo);
     }, []);
 
     // Animacion de conteo del saldo al montar o cambiar de moneda
@@ -194,6 +223,8 @@ function Home() {
         setTransferencias((prev) => prev.map((t) => (t.id === actualizada.id ? actualizada : t)));
         setDetalleActivo(actualizada);
         cargarPerfil(); // confirmar una pendiente mueve plata: refrescamos el saldo
+        // Confirmar una pendiente tambien genera notificaciones (cancelar/editar no, pero no hace nada raro re-pedirlas igual)
+        window.dispatchEvent(new Event('notificaciones-actualizadas'));
     };
 
     useEffect(() => () => clearTimeout(avisoTimeoutRef.current), []);
@@ -327,12 +358,14 @@ function Home() {
                 onCerrar={() => setModalActivo(null)}
                 config={configModalPesos}
                 onExito={cargarDatosTrasTransferencia}
+                contactos={contactosFrecuentes}
             />
             <TransferModal
                 abierto={modalActivo === 'dolares'}
                 onCerrar={() => setModalActivo(null)}
                 config={configModalDolares}
                 onExito={cargarDatosTrasTransferencia}
+                contactos={contactosFrecuentes}
             />
             <PlazoFijoModal
                 abierto={plazoFijoAbierto}

@@ -149,6 +149,57 @@
     box-shadow: 0 0 0 3px rgba(255, 107, 26, 0.1);
 }
 
+/* Sugerencias de destinatarios ya usados */
+.transfer-destinatario-wrapper {
+    position: relative;
+}
+
+.transfer-sugerencias {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 10;
+    margin: 0;
+    padding: 6px;
+    list-style: none;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+.transfer-sugerencia-item {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: 9px 10px;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    font-family: inherit;
+    transition: background-color 0.15s;
+}
+
+.transfer-sugerencia-item:hover {
+    background-color: #fff7f0;
+}
+
+.transfer-sugerencia-alias {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.transfer-sugerencia-nombre {
+    font-size: 12px;
+    color: #6b7280;
+}
+
 /* Chip de saldo disponible */
 .transfer-modal-saldo {
     display: flex;

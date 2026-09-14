@@ -18,6 +18,15 @@ function Movimientos() {
         cargar();
     }, []);
 
+    // Polling: si otro usuario confirma o cancela una transferencia pendiente que
+    // tenes con el, no hay forma de enterarse sin preguntarle al backend de tanto
+    // en tanto (no hay websockets en este proyecto). Silencioso: no toca "cargando"
+    // para no reemplazar la lista por el cartel de "Cargando..." cada vez.
+    useEffect(() => {
+        const intervalo = setInterval(refrescarSilencioso, 15000);
+        return () => clearInterval(intervalo);
+    }, []);
+
     async function cargar() {
         setCargando(true);
         try {
@@ -30,9 +39,21 @@ function Movimientos() {
         }
     }
 
+    async function refrescarSilencioso() {
+        try {
+            const datos = await listarTransferencias();
+            setTransferencias(datos);
+            setDetalleActivo((actual) => (actual ? datos.find((t) => t.id === actual.id) || actual : actual));
+        } catch {
+            // si falla, se mantiene la lista tal como estaba
+        }
+    }
+
     function manejarActualizada(actualizada) {
         setTransferencias((prev) => prev.map((t) => (t.id === actualizada.id ? actualizada : t)));
         setDetalleActivo(actualizada);
+        // Confirmar una pendiente genera notificaciones (enviada/recibida) al instante
+        window.dispatchEvent(new Event('notificaciones-actualizadas'));
     }
 
     return (

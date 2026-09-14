@@ -24,7 +24,9 @@ function formatearMonto(valor) {
 // (simbolo, saldo disponible, moneda para el backend, y si corresponde mostrar
 // el equivalente en pesos). "onExito" se llama despues de crear la transferencia
 // para que la pantalla que abrio el modal pueda refrescar saldo y actividad.
-function TransferModal({ abierto, onCerrar, config, onExito }) {
+// "contactos" son los alias a los que ya se les transfirio antes (mas reciente
+// primero), para sugerirlos mientras se escribe el destinatario.
+function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'confirmar' | 'exito'
     const [destinatario, setDestinatario] = useState('');
     const [monto, setMonto] = useState('');
@@ -35,8 +37,22 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
     const [enviando, setEnviando] = useState(false);
     const [destinatarioInfo, setDestinatarioInfo] = useState(null);
     const [resultado, setResultado] = useState(null);
+    const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
 
     if (!abierto) return null;
+
+    // Mientras el campo esta vacio se sugieren los contactos mas recientes;
+    // en cuanto se escribe algo, se filtra por alias que empiecen con eso.
+    const textoBusqueda = destinatario.trim().toLowerCase();
+    const sugerencias = (textoBusqueda
+        ? contactos.filter((c) => c.alias.toLowerCase().startsWith(textoBusqueda))
+        : contactos
+    ).slice(0, 5);
+
+    function elegirSugerencia(alias) {
+        setDestinatario(alias);
+        setSugerenciasAbiertas(false);
+    }
 
     const montoNumero = parseFloat(monto) || 0;
     const saldoRestante = config.saldo - montoNumero;
@@ -55,6 +71,7 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
             setEnviando(false);
             setDestinatarioInfo(null);
             setResultado(null);
+            setSugerenciasAbiertas(false);
         }, 200);
     }
 
@@ -149,12 +166,34 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
 
                                     <div className="transfer-campo">
                                         <label>¿A quién le transferís?</label>
-                                        <input
-                                            type="text"
-                                            placeholder={config.placeholderDestinatario}
-                                            value={destinatario}
-                                            onChange={(e) => setDestinatario(e.target.value)}
-                                        />
+                                        <div className="transfer-destinatario-wrapper">
+                                            <input
+                                                type="text"
+                                                placeholder={config.placeholderDestinatario}
+                                                value={destinatario}
+                                                onChange={(e) => setDestinatario(e.target.value)}
+                                                onFocus={() => setSugerenciasAbiertas(true)}
+                                                onBlur={() => setTimeout(() => setSugerenciasAbiertas(false), 150)}
+                                                autoComplete="off"
+                                            />
+                                            {sugerenciasAbiertas && sugerencias.length > 0 && (
+                                                <ul className="transfer-sugerencias">
+                                                    {sugerencias.map((c) => (
+                                                        <li key={c.alias}>
+                                                            <button
+                                                                type="button"
+                                                                className="transfer-sugerencia-item"
+                                                                onMouseDown={(e) => e.preventDefault()}
+                                                                onClick={() => elegirSugerencia(c.alias)}
+                                                            >
+                                                                <span className="transfer-sugerencia-alias">{c.alias}</span>
+                                                                <span className="transfer-sugerencia-nombre">{c.nombre}</span>
+                                                            </button>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            )}
+                                        </div>
                                     </div>
 
                                     <div className="transfer-campo">

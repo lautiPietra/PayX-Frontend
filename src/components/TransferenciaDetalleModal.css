@@ -65,12 +65,18 @@
 
 .detalle-monto.positivo { color: #16a34a; }
 .detalle-monto.negativo { color: #1a1a1a; }
+.detalle-monto.cancelada { color: #9ca3af; text-decoration: line-through; }
 
 .detalle-titulo {
   text-align: center;
   color: #6b7280;
   font-size: 14px;
   margin: 4px 0 14px;
+}
+
+.detalle-titulo.cancelada {
+  color: #dc2626;
+  font-weight: 600;
 }
 
 .detalle-badge-estado {
@@ -91,11 +97,6 @@
 .detalle-badge-estado.pendiente {
   background: #fef3c7;
   color: #92400e;
-}
-
-.detalle-badge-estado.cancelada {
-  background: #f3f4f6;
-  color: #6b7280;
 }
 
 .detalle-filas {

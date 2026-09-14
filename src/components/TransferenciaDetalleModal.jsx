@@ -34,6 +34,7 @@ function TransferenciaDetalleModal({ transferencia, onCerrar, onActualizada }) {
     if (!transferencia) return null;
 
     const esEnviada = transferencia.direccion === 'ENVIADA';
+    const esCancelada = transferencia.estado === 'CANCELADA';
     const simbolo = SIMBOLOS[transferencia.moneda] || '$';
 
     async function guardarConcepto() {
@@ -83,14 +84,19 @@ function TransferenciaDetalleModal({ transferencia, onCerrar, onActualizada }) {
                     <IconX size={18} />
                 </button>
 
-                <div className={`detalle-monto ${esEnviada ? 'negativo' : 'positivo'}`}>
-                    {esEnviada ? '-' : '+'}{simbolo} {formatearMonto(transferencia.monto)}
+                {/* Cancelada: nunca se movio plata, asi que no se muestra con signo ni color de recibido/enviado */}
+                <div className={`detalle-monto ${esCancelada ? 'cancelada' : (esEnviada ? 'negativo' : 'positivo')}`}>
+                    {esCancelada ? '' : (esEnviada ? '-' : '+')}{simbolo} {formatearMonto(transferencia.monto)}
                 </div>
-                <p className="detalle-titulo">{esEnviada ? 'Transferencia enviada' : 'Transferencia recibida'}</p>
+                <p className={`detalle-titulo ${esCancelada ? 'cancelada' : ''}`}>
+                    {esCancelada ? 'Transferencia cancelada' : (esEnviada ? 'Transferencia enviada' : 'Transferencia recibida')}
+                </p>
 
-                <span className={`detalle-badge-estado ${transferencia.estado.toLowerCase()}`}>
-                    ● {ESTADO_LABEL[transferencia.estado]}
-                </span>
+                {!esCancelada && (
+                    <span className={`detalle-badge-estado ${transferencia.estado.toLowerCase()}`}>
+                        ● {ESTADO_LABEL[transferencia.estado]}
+                    </span>
+                )}
 
                 <div className="detalle-filas">
                     <div className="detalle-fila">
