@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { IconX, IconArrowLeft, IconSend, IconCheck, IconWallet, IconChevronDown, IconClock, IconAlertTriangle } from './icons/Icons';
-import { crearTransferencia } from '../services/transferenciaService';
+import { crearTransferencia, resolverDestinatario } from '../services/transferenciaService';
 import './TransferModal.css';
 
 const MOTIVOS = [
@@ -25,13 +25,15 @@ function formatearMonto(valor) {
 // el equivalente en pesos). "onExito" se llama despues de crear la transferencia
 // para que la pantalla que abrio el modal pueda refrescar saldo y actividad.
 function TransferModal({ abierto, onCerrar, config, onExito }) {
-    const [paso, setPaso] = useState('form'); // 'form' | 'exito'
+    const [paso, setPaso] = useState('form'); // 'form' | 'confirmar' | 'exito'
     const [destinatario, setDestinatario] = useState('');
     const [monto, setMonto] = useState('');
     const [motivo, setMotivo] = useState('');
     const [tipo, setTipo] = useState('DIRECTA'); // 'DIRECTA' | 'PENDIENTE'
     const [error, setError] = useState('');
+    const [resolviendo, setResolviendo] = useState(false);
     const [enviando, setEnviando] = useState(false);
+    const [destinatarioInfo, setDestinatarioInfo] = useState(null);
     const [resultado, setResultado] = useState(null);
 
     if (!abierto) return null;
@@ -49,7 +51,9 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
             setMotivo('');
             setTipo('DIRECTA');
             setError('');
+            setResolviendo(false);
             setEnviando(false);
+            setDestinatarioInfo(null);
             setResultado(null);
         }, 200);
     }
@@ -59,7 +63,9 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
         setError('');
     }
 
-    async function handleSubmit(e) {
+    // Valida los datos del formulario y busca a quien corresponde el destinatario
+    // ingresado, para mostrarlo en la pantalla de confirmacion antes de mover nada.
+    async function handleContinuar(e) {
         e.preventDefault();
         setError('');
 
@@ -76,6 +82,22 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
             return;
         }
 
+        setResolviendo(true);
+        try {
+            const info = await resolverDestinatario(destinatario.trim());
+            setDestinatarioInfo(info);
+            setPaso('confirmar');
+        } catch (err) {
+            setError(err.response?.data?.error || 'No pudimos encontrar ese destinatario.');
+        } finally {
+            setResolviendo(false);
+        }
+    }
+
+    // Recien aca se crea la transferencia de verdad, despues de que el usuario
+    // vio a quien le transfiere y confirmo.
+    async function handleConfirmar() {
+        setError('');
         setEnviando(true);
         try {
             const creada = await crearTransferencia({
@@ -117,7 +139,7 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
 
                             <div className="transfer-page-grid">
 
-                                <form onSubmit={handleSubmit} className="transfer-form-col" noValidate>
+                                <form onSubmit={handleContinuar} className="transfer-form-col" noValidate>
 
                                     <div className="transfer-modal-saldo">
                                         <span className="transfer-modal-saldo-icono"><IconWallet size={16} /></span>
@@ -206,12 +228,8 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
                                         <button type="button" className="transfer-btn-cancelar" onClick={resetearYCerrar}>
                                             Cancelar
                                         </button>
-                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando}>
-                                            {enviando ? 'Procesando...' : (
-                                                tipo === 'DIRECTA'
-                                                    ? <><IconSend size={15} /> Transferir</>
-                                                    : <><IconClock size={15} /> Dejar pendiente</>
-                                            )}
+                                        <button type="submit" className="transfer-btn-continuar" disabled={resolviendo}>
+                                            {resolviendo ? 'Buscando destinatario...' : <>Continuar</>}
                                         </button>
                                     </div>
                                 </form>
@@ -248,6 +266,72 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
                         </>
                     )}
 
+                    {paso === 'confirmar' && (
+                        <div className="transfer-confirmar-page">
+                            <div className="transfer-confirmar-icono">
+                                <IconAlertTriangle size={26} />
+                            </div>
+                            <h1 className="transfer-page-titulo">Confirmá la transferencia</h1>
+                            <p className="transfer-page-subtitulo">Revisá que los datos sean correctos antes de continuar</p>
+
+                            <div className="transfer-confirmar-card">
+                                <p className="transfer-confirmar-monto">{config.simbolo} {formatearMonto(montoNumero)}</p>
+                                {config.mostrarEquivalente && montoNumero > 0 && (
+                                    <p className="transfer-equivalente centrado">
+                                        ≈ $ {formatearMonto(equivalentePesos)} al tipo de cambio actual
+                                    </p>
+                                )}
+
+                                <div className="transfer-confirmar-divisor" />
+
+                                <div className="transfer-confirmar-fila">
+                                    <span>Le vas a transferir a</span>
+                                    <strong>{destinatarioInfo?.nombreCompleto}</strong>
+                                </div>
+                                <div className="transfer-confirmar-fila">
+                                    <span>Alias</span>
+                                    <strong>{destinatarioInfo?.alias}</strong>
+                                </div>
+                                <div className="transfer-confirmar-fila">
+                                    <span>CVU</span>
+                                    <strong className="mono">{destinatarioInfo?.cvu}</strong>
+                                </div>
+                                {motivo && (
+                                    <div className="transfer-confirmar-fila">
+                                        <span>Motivo</span>
+                                        <strong>{motivo}</strong>
+                                    </div>
+                                )}
+                                <div className="transfer-confirmar-fila">
+                                    <span>Tipo de envío</span>
+                                    <strong>{tipo === 'DIRECTA' ? 'Directa (inmediata)' : 'Pendiente (a confirmar después)'}</strong>
+                                </div>
+                            </div>
+
+                            {tipo === 'PENDIENTE' && (
+                                <div className="transfer-resumen-aviso-pendiente centrado">
+                                    <IconAlertTriangle size={14} />
+                                    <span>No se descuenta nada hasta que confirmes la transferencia</span>
+                                </div>
+                            )}
+
+                            {error && <div className="transfer-error">{error}</div>}
+
+                            <div className="transfer-modal-botones">
+                                <button type="button" className="transfer-btn-cancelar" onClick={() => setPaso('form')} disabled={enviando}>
+                                    <IconArrowLeft size={15} /> Editar
+                                </button>
+                                <button type="button" className="transfer-btn-continuar" onClick={handleConfirmar} disabled={enviando}>
+                                    {enviando ? 'Procesando...' : (
+                                        tipo === 'DIRECTA'
+                                            ? <><IconSend size={15} /> Confirmar transferencia</>
+                                            : <><IconClock size={15} /> Confirmar y dejar pendiente</>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
                     {paso === 'exito' && (
                         <div className="transfer-exito-page">
                             <div className={`transfer-exito-icono ${tipo === 'PENDIENTE' ? 'pendiente' : ''}`}>
@@ -258,10 +342,10 @@ function TransferModal({ abierto, onCerrar, config, onExito }) {
                             </h1>
                             <p className="transfer-exito-texto">
                                 {tipo === 'DIRECTA' ? (
-                                    <>Le transferiste <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatario}</strong></>
+                                    <>Le transferiste <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong></>
                                 ) : (
                                     <>
-                                        Dejaste pendiente una transferencia de <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatario}</strong>.
+                                        Dejaste pendiente una transferencia de <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong>.
                                         No se descontó nada todavía: podés confirmarla o cancelarla cuando quieras desde "Consultar todas".
                                     </>
                                 )}

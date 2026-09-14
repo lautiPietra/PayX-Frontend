@@ -9,6 +9,13 @@ export const crearTransferencia = async (datos) => {
     return response.data;
 };
 
+// Resuelve un CVU/alias/@usuario a { nombreCompleto, alias, cvu } sin crear nada.
+// Se usa para mostrarle al usuario a quien le esta por transferir antes de que confirme.
+export const resolverDestinatario = async (valor) => {
+    const response = await axios.get(`${API_URL}/destinatario`, { params: { valor } });
+    return response.data;
+};
+
 // Todas las transferencias del usuario logueado (enviadas y recibidas), mas recientes primero.
 export const listarTransferencias = async () => {
     const response = await axios.get(API_URL);

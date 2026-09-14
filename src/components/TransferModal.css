@@ -374,6 +374,10 @@
 
 .transfer-btn-cancelar {
     flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
     padding: 13px;
     border: 1.5px solid #e5e7eb;
     border-radius: 10px;
@@ -384,6 +388,11 @@
     cursor: pointer;
     font-family: inherit;
     transition: background-color 0.2s;
+}
+
+.transfer-btn-cancelar:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .transfer-btn-cancelar:hover {
@@ -422,8 +431,10 @@
 }
 
 .transfer-btn-continuar.ancho-completo {
+    display: block;
     width: 100%;
     max-width: 320px;
+    margin: 0 auto;
 }
 
 /* ===== Columna de resumen (sticky) ===== */
@@ -513,6 +524,98 @@
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+/* ===== Estado de confirmacion ===== */
+.transfer-confirmar-page {
+    max-width: 460px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.transfer-confirmar-icono {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: #fff7f0;
+    color: #ff6b1a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+}
+
+.transfer-confirmar-card {
+    margin-top: 28px;
+    background: linear-gradient(160deg, #1a1a1a, #2d2d2d);
+    color: #ffffff;
+    border-radius: 18px;
+    padding: 28px;
+    text-align: left;
+}
+
+.transfer-confirmar-monto {
+    text-align: center;
+    font-size: 30px;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 0;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+}
+
+.transfer-equivalente.centrado {
+    text-align: center;
+    color: #9ca3af;
+}
+
+.transfer-confirmar-divisor {
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.12);
+    margin: 20px 0 16px;
+}
+
+.transfer-confirmar-fila {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13.5px;
+    color: #9ca3af;
+    padding: 8px 0;
+}
+
+.transfer-confirmar-fila + .transfer-confirmar-fila {
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.transfer-confirmar-fila strong {
+    color: #ffffff;
+    font-weight: 600;
+    text-align: right;
+}
+
+.transfer-confirmar-fila strong.mono {
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.02em;
+}
+
+.transfer-resumen-aviso-pendiente.centrado {
+    justify-content: center;
+    margin-top: 20px;
+    margin-bottom: 4px;
+}
+
+.transfer-confirmar-page .transfer-modal-botones {
+    margin-top: 24px;
+}
+
+.transfer-confirmar-page .transfer-error {
+    margin-top: 16px;
+    text-align: left;
 }
 
 /* ===== Estado de exito ===== */
