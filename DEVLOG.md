@@ -367,3 +367,149 @@ Sin ningún lock, dos transferencias DIRECTAS simultáneas desde la misma cuenta
 No se pudo escribir un test que reproduzca la condición de carrera en sí (los mocks de Mockito no simulan bloqueos reales de base de datos; haría falta un test de integración contra una base real, que este proyecto no tiene configurado) — la corrección se verificó por lectura de código y por el comportamiento correcto ya cubierto en los tests existentes (revalidación de saldo, chequeo de propiedad, etc.).
 
 ---
+
+### Feature: plazos fijos reales (constitución, vencimiento automático y listado)
+
+El modal de plazos fijos ya existía en el frontend pero era 100% mock: no había backend, las tasas estaban hardcodeadas en el componente y "constituir" un plazo fijo no tocaba ningún saldo. Ahora es una función real: descuenta el capital al constituirlo y lo devuelve solo, con el interés correspondiente, el día del vencimiento.
+
+**Tabla `plazo_fijo`** — ya existía en la base (el usuario la tenía creada de antes, sin usar). Se mapeó la entidad tal cual está en vez de crear una tabla nueva o pedir un `ALTER TABLE`: `fecha_fin` cubre el vencimiento y `monto_total_recibido` lo que se acredita; el plazo en días y el interés estimado **no se guardan aparte**, se derivan de `fecha_fin - fecha_inicio` y `monto_total_recibido - monto_invertido` respectivamente. Tampoco hay columna de fecha de acreditación real: al no ser un timestamp sino una fecha (`date`, sin hora) el concepto no aplica con esa precisión, así que se usa `fecha_fin` como "día de acreditación" una vez que el estado pasa a VENCIDO. La tabla identifica el plazo fijo por `usuario_id` directamente (no por `cuenta_id` como hace `transacciones`), lo cual funciona porque cada usuario tiene una única cuenta.
+
+**Backend:**
+- [PlazoFijo.java](../PayX-backend/src/main/java/com/payx/backend/model/PlazoFijo.java): entidad mapeada a `plazo_fijo`. Guarda `tasa_interes` (TNA) "congelada" al momento de constituirse — si la tasa de referencia cambia después, no debe afectar plazos fijos ya en curso. `fecha_inicio`/`fecha_fin` son `LocalDate` (la tabla las tiene como `date`, no `timestamptz`).
+- [PlazoFijoRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/PlazoFijoRepository.java): `countByUsuarioIdAndEstado` (para el límite de 5 activos), `findByEstadoAndFechaVencimientoLessThanEqual` (para el scheduler, comparando contra `LocalDate.now()`) y `findByIdConLock` con lock pesimista.
+- [PlazoFijoService.java](../PayX-backend/src/main/java/com/payx/backend/service/PlazoFijoService.java):
+  - Las tasas por plazo (30/60/90/180/365 días) viven **en el backend**, no en el cliente: si el frontend pudiera mandar su propia TNA, cualquiera podría inventarse una tasa alta y cobrar de más al vencimiento. El frontend las pide por `GET /api/plazos-fijos/tasas`.
+  - `crearPlazoFijo` bloquea la cuenta (mismo `findByIdConLock` que ya usa `TransferenciaService`) **antes** de contar los plazos fijos activos y de validar el saldo: sin ese lock, dos pedidos simultáneos podían leer el mismo saldo o el mismo conteo de "4 activos" y los dos pasar la validación — doble gasto, o terminar con 6 plazos fijos activos en vez del máximo de 5.
+  - El interés se calcula como `capital × (TNA/100) × (días/365)`, redondeado a 2 decimales — la misma fórmula que ya mostraba el mock, ahora es la que realmente determina cuánta plata se acredita.
+  - `procesarVencimiento(id)` acredita un plazo fijo vencido (capital + interés, buscando la cuenta por `usuario_id`) y lo marca `VENCIDO`. Es **idempotente**: si se llama dos veces sobre el mismo plazo fijo ya procesado, no vuelve a acreditar nada (relee el estado bajo lock antes de tocar algo).
+- [PlazoFijoScheduler.java](../PayX-backend/src/main/java/com/payx/backend/service/PlazoFijoScheduler.java): corre cada 60s (`plazofijo.scheduler.fixed-delay-ms`, configurable) y procesa los vencidos uno por uno, cada uno en su propia transacción. Vive en un `@Component` **separado** de `PlazoFijoService` a propósito: si el scheduler llamara a un método `@Transactional` del mismo bean con `this.metodo(...)`, la anotación no tendría ningún efecto (auto-invocación no pasa por el proxy de Spring que abre la transacción) — es un error clásico de Spring, fácil de cometer sin darse cuenta.
+- [PlazoFijoController.java](../PayX-backend/src/main/java/com/payx/backend/controller/PlazoFijoController.java): `GET /tasas`, `POST /` (constituir), `GET /` (listar los propios).
+- [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java): se generalizó `reemplazarVariables` para aceptar cualquier `Map<String,String>` de variables (antes solo sabía de `usuario`/`cuenta`/`monto` para transferencias). Se agregó `notificarPlazoFijo`, que además soporta `{{dias}}`. Hacen falta 2 plantillas nuevas en el panel de admin: `PLAZO_FIJO_CONSTITUIDO` y `PLAZO_FIJO_VENCIDO` (mismo procedimiento que se usó para las de transferencias).
+- [PayxBackendApplication.java](../PayX-backend/src/main/java/com/payx/backend/PayxBackendApplication.java): se agregó `@EnableScheduling` (primer uso de tareas programadas en el backend).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límite de 15/min para `POST /api/plazos-fijos` (constituir plazos fijos mueve saldo real).
+
+**Frontend:**
+- [plazoFijoService.js](src/services/plazoFijoService.js): `obtenerTasasPlazoFijo`, `crearPlazoFijo`, `listarPlazosFijos`.
+- [PlazoFijoModal.jsx](src/components/PlazoFijoModal.jsx): dejó de simular todo. Pide las tasas y el monto mínimo al backend al abrirse, y al confirmar crea el plazo fijo real (con manejo de los errores del backend: monto mínimo, saldo insuficiente, máximo de 5 activos, plazo inválido). La pantalla de éxito muestra los valores que realmente devolvió el backend, no un cálculo hecho en el cliente.
+- [PlazoFijoListaModal.jsx](src/components/PlazoFijoListaModal.jsx) (nuevo): modal pedido explícitamente — lista los plazos fijos del usuario (activos y vencidos) con fecha de constitución, monto invertido, tasa, plazo en días, cuánto genera de interés, el total a cobrar y la fecha de acreditación (automática, no hay ninguna acción manual para "cobrar antes"). Se abre desde un link dentro del modal de constituir, y también como acción propia ("Mis plazos fijos") en la sección de Inversiones de Home.
+- [Home.jsx](src/pages/Home.jsx): nueva acción "Mis plazos fijos"; el polling de perfil que ya existía cada 15s alcanza para reflejar solo el saldo cuando el scheduler acredita un vencimiento (no hizo falta agregar nada más ahí).
+- [Navbar.jsx](src/components/Navbar.jsx): títulos para las notificaciones `PLAZO_FIJO_CONSTITUIDO`/`PLAZO_FIJO_VENCIDO`.
+
+**Frontend, corrección de zona horaria:** el backend manda `fechaInicio`/`fechaVencimiento` como fechas puras `"yyyy-MM-dd"` (sin hora). Parsearlas con `new Date(str)` las interpreta como medianoche UTC; en un huso horario negativo como el de Argentina (UTC-3), `toLocaleDateString` podía mostrar **un día antes** del real (ej: vencimiento real 15/10, se mostraba 14/10). Se corrigió armando la fecha en horario local a mano (`new Date(anio, mes-1, dia)`) en vez de dejar que el motor la interprete como UTC, tanto en `PlazoFijoModal.jsx` como en `PlazoFijoListaModal.jsx`.
+
+**Tests:** [PlazoFijoServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/PlazoFijoServiceTest.java), 10 casos — cálculo de interés, monto mínimo, plazo inválido, saldo insuficiente, máximo de 5 activos, acreditación correcta al vencer, idempotencia (no se acredita dos veces), una notificación fallida no revierte la acreditación, cuenta inexistente al vencer no rompe el scheduler, listado ordenado. **40/40 tests pasan** en total, incluyendo `PayxBackendApplicationTests.contextLoads` (carga completa de Spring, valida el mapeo de la entidad contra la tabla real de Supabase) — al no haber hecho falta ningún `ALTER TABLE`, no quedó ningún test rojo pendiente de una migración manual.
+
+---
+
+### Plazo fijo: notificación instantánea y aparición en el feed de actividad
+
+Dos pedidos después de probar la función: la notificación de "plazo fijo constituido" tardaba en aparecer, y el alta de un plazo fijo no se veía ni en "Últimas actividades" (Home) ni en "Mis movimientos".
+
+**Causa de la demora:** al confirmar una transferencia, `cargarDatosTrasTransferencia` dispara `window.dispatchEvent(new Event('notificaciones-actualizadas'))` para que el Navbar refresque las notificaciones al instante. El `onExito` de `PlazoFijoModal` en cambio solo llamaba a `cargarPerfil` (el saldo) y nunca disparaba ese evento — la notificación de alta recién aparecía en el siguiente ciclo de polling del Navbar. Se agregó `cargarDatosTrasPlazoFijo` en [Home.jsx](src/pages/Home.jsx), igual que la de transferencias, que además dispara el evento. De paso se bajó el polling de notificaciones (Navbar), de saldo/transferencias (Home) y de movimientos (Movimientos) de 15s a 5s — ninguno de esos endpoints tiene rate limit, así que es seguro y hace que todo se sienta más instantáneo sin necesitar websockets.
+
+**Feed de actividad unificado:** [utils/actividad.js](src/utils/actividad.js) (nuevo) combina transferencias y eventos de plazo fijo en una sola lista ordenada por fecha. Cada plazo fijo genera un evento "ALTA" (fecha de constitución, monto invertido, en rojo) y, si ya venció, un segundo evento "VENCIMIENTO" (fecha de vencimiento, capital + interés acreditado, en verde) — así el historial refleja las dos puntas del movimiento de plata, no solo la constitución. [ActividadItem.jsx](src/components/ActividadItem.jsx) ahora acepta una prop `plazoFijoEvento` además de `transferencia` y renderiza el ícono/título/monto según el tipo. Se usa en [Home.jsx](src/pages/Home.jsx) (últimas 4 actividades) y en [Movimientos.jsx](src/pages/Movimientos.jsx) (listado completo, que ahora también trae los plazos fijos con `listarPlazosFijos`); en ambos, clickear un evento de plazo fijo navega a `/plazos-fijos`.
+
+---
+
+### "Mis plazos fijos" pasó de modal chico a página completa
+
+El modal (`PlazoFijoListaModal`) quedaba chico e inconsistente al lado de "Todos tus movimientos", que sí es una página. Se reemplazó por una ruta nueva.
+
+- [PlazosFijos.jsx](src/pages/PlazosFijos.jsx) (nueva página, ruta `/plazos-fijos` en [App.jsx](src/App.jsx)): mismo esqueleto que `Movimientos.jsx` (Navbar, botón volver, header, polling cada 5s), con un botón "Constituir nuevo" que abre `PlazoFijoModal` directamente ahí (deshabilitado si ya hay 5 activos) y la lista completa de plazos fijos reutilizando las tarjetas que ya existían en el modal viejo.
+- Se borró `PlazoFijoListaModal.jsx` y se limpiaron de [PlazoFijoModal.css](src/components/PlazoFijoModal.css) las clases que eran solo del overlay/modal (`.plazo-fijo-lista-overlay/-modal/-header/-cerrar/-vacio`); las clases de las tarjetas de cada plazo fijo (`.plazo-fijo-item*`) se mantuvieron porque las reutiliza la página nueva.
+- El link "Ver mis plazos fijos" dentro de `PlazoFijoModal` y el click en un evento de plazo fijo en el feed de actividad (Home/Movimientos) ahora navegan a `/plazos-fijos` en vez de abrir un modal.
+
+No pude verificar esto visualmente en un navegador (no tengo credenciales de un usuario de prueba cargadas en esta conversación) — sí verifiqué que compila sin errores; conviene que lo mires vos antes de darlo por cerrado.
+
+---
+
+### Fix: dos plazos fijos el mismo día no se ordenaban por el último creado
+
+Al constituir dos plazos fijos el mismo día, el feed de actividad los mostraba en un orden que no era el de creación (el de 30 días apareció antes que el de 90 días, aunque el de 90 se creó después). Causa: `fecha_inicio` en la tabla `plazo_fijo` es un `date` **sin hora**, así que dos altas el mismo día quedan con el mismo valor — no hay forma de saber cuál fue la última. Las transferencias no tienen este problema porque `fecha_creacion` en `transacciones` sí es un timestamp completo.
+
+Se agregó una columna nueva (no destructiva, con default, no toca las existentes):
+
+```sql
+ALTER TABLE plazo_fijo ADD COLUMN fecha_creacion TIMESTAMPTZ NOT NULL DEFAULT now();
+```
+
+- [PlazoFijo.java](../PayX-backend/src/main/java/com/payx/backend/model/PlazoFijo.java): nuevo campo `fechaCreacion` (`OffsetDateTime`), solo para ordenar — no participa del cálculo de interés ni del vencimiento (eso sigue siendo `fecha_inicio`/`fecha_fin`, fechas puras).
+- [PlazoFijoRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/PlazoFijoRepository.java): `findByUsuarioIdOrderByFechaCreacionDesc` reemplaza al que ordenaba por `fechaInicio`.
+- [PlazoFijoService.java](../PayX-backend/src/main/java/com/payx/backend/service/PlazoFijoService.java): setea `fechaCreacion` al constituir el plazo fijo; se agregó al `PlazoFijoResponse`.
+- [utils/actividad.js](src/utils/actividad.js): el evento "ALTA" ahora ordena por `fechaCreacion` en vez de `fechaInicio`.
+- [ActividadItem.jsx](src/components/ActividadItem.jsx): el evento de alta ahora muestra fecha **y hora** (como las transferencias); el de vencimiento sigue mostrando solo fecha, porque `fecha_fin` no tiene hora y no se sabe el instante exacto en que el scheduler lo acreditó.
+
+10/10 tests de `PlazoFijoServiceTest` siguen pasando.
+
+---
+
+### Auditoría del módulo de plazos fijos: formularios, montos, límites y huso horario
+
+Pedido explícito de romper el módulo a propósito (formularios, montos, porcentajes, fechas, el caso "a las 12 de la noche", más de 5 activos) y arreglar lo que fallara.
+
+**1. BUG REAL — la fecha del plazo fijo dependía del huso horario del servidor, no del de Argentina:** `LocalDate.now()` usa la zona horaria por defecto de la JVM. Si el backend corriera en un servidor configurado en UTC (algo común en hosting en la nube), entre las 21:00 y las 23:59 hora Argentina (UTC-3) el reloj UTC ya está en el día siguiente — un plazo fijo constituido a esa hora hubiera quedado con `fecha_inicio` de "mañana" en vez de "hoy" (y por lo tanto también `fecha_fin` corrida un día). Se agregó [ClockConfig.java](../PayX-backend/src/main/java/com/payx/backend/config/ClockConfig.java), un bean `Clock` fijado explícitamente a `America/Argentina/Buenos_Aires`, inyectado en `PlazoFijoService` en vez de llamar a `LocalDate.now()`/`OffsetDateTime.now()` directo. De paso esto hace el servicio testeable con un reloj fijo, algo imposible de probar de forma determinística con el reloj real — se agregó un test (`constituirCercaDeLaMedianocheUsaElDiaDeArgentinaNoElDelServidor`) que fija el reloj a las 23:50 y verifica que `fecha_inicio` sea el día correcto.
+
+**2. Validado con tests, sin bugs encontrados:**
+- **Los 5 plazos válidos** (30/60/90/180/365 días) calculan la TNA e interés correctos; se sumó un caso a 365 días (`dias/365 = 1`, simplifica la fórmula) para verificarla "en limpio" sin redondeos intermedios.
+- **Cualquier plazo no ofrecido** (0, negativo, 1, 45, 100, 366, 1000) se rechaza — el diseño ya usa una lista explícita de tasas (no un rango), así que cualquier valor fuera de esa lista se frena solo, sin necesitar una validación de rango aparte.
+- **Monto exactamente en el mínimo** ($1000.00) se acepta; un centavo menos ($999.99) se rechaza — confirma que el límite es inclusive (`>=`) como corresponde.
+- **Con 4 plazos fijos activos** todavía se puede constituir el quinto; con 5 activos, el sexto se rechaza — confirma que el límite de "máximo 5" no tiene un error de off-by-one.
+- Monto en cero o negativo: ya rechazado tanto por `@DecimalMin("0.01")` en el DTO (antes de llegar al servicio) como por la propia comparación contra el mínimo si igual llegara (defensa en profundidad).
+
+**37/37 tests pasan** en todo el backend (17 de ellos en `PlazoFijoServiceTest`, antes 10), incluyendo `PayxBackendApplicationTests.contextLoads` (confirma que el nuevo bean `Clock` no rompe el arranque de Spring).
+
+Nota aparte: el resto del backend (`TransferenciaService`, `VerificacionService`, etc.) sigue usando `OffsetDateTime.now()`/`LocalDate.now()` sin zona explícita. Ahí el riesgo es menor porque son *instantes* (con offset), no fechas puras de calendario — pero si en algún momento se agrega otra lógica basada en "qué día es hoy" en esos servicios, conviene inyectarles el mismo `Clock` en vez de repetir el problema.
+
+---
+
+### Feature: compra y venta real de dólares con cotización oficial en vivo
+
+El modal de compra/venta ya existía en el frontend pero, igual que el plazo fijo antes de esta sesión, era 100% mock: la cotización estaba hardcodeada (`COTIZACION_COMPRA_USD`/`VENTA_USD`) y no se movía ningún saldo real. Se investigaron 2 APIs gratuitas y sin api key para el dólar oficial argentino ([dolarapi.com](https://dolarapi.com) y [bluelytics.com.ar](https://api.bluelytics.com.ar)) y se probaron ambas a mano antes de elegir: se usa **dolarapi.com** (`/v1/dolares/oficial`) por devolver directamente `compra`/`venta` sin transformar. Se usa la cotización **oficial**, no la "blue" (informal): es la que correspondería a una app financiera formal como PayX.
+
+**Tabla `operaciones_cambio`** — ya existía en la base (igual que `plazo_fijo`, sin usar todavía). No hizo falta ningún `ALTER TABLE`: es más genérica que el diseño inicial, con `moneda_origen`/`moneda_destino` en vez de un `tipo` fijo COMPRA/VENTA (soporta cualquier par de monedas) y `monto_enviado`/`monto_recibido`/`cotizacion_usada` con precisión `NUMERIC(18,8)` — la misma que usan los saldos cripto de `cuentas` (`saldo_btc`/`saldo_eth`/`saldo_solana`), lo que sugiere que la tabla ya estaba pensada para poder registrar cambios con cripto más adelante, no solo pesos/dólares. El "tipo" (COMPRA/VENTA) no se guarda como columna: se deriva en el servicio según cuál de las dos monedas es PESOS.
+
+**Backend:**
+- [DolarApiClient.java](../PayX-backend/src/main/java/com/payx/backend/client/DolarApiClient.java) / [DolarApiClientImpl.java](../PayX-backend/src/main/java/com/payx/backend/client/DolarApiClientImpl.java): cliente HTTP hacia dolarapi.com, mismo patrón que `AuthService.verificarTokenGoogle` (un `RestClient.create()` propio). Separado en una interfaz para poder testear la lógica de cache sin simular la cadena fluida de `RestClient`.
+- [CotizacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/CotizacionService.java): cachea la cotización en memoria por 60s. Sin esto, el polling del frontend (cada 5-20s, potencialmente desde varios usuarios/pestañas) le pegaría constantemente a una API gratuita de terceros — un abuso innecesario y un punto de falla evitable. Si el proveedor externo falla, devuelve la **última cotización buena conocida** marcada como `desactualizada` en vez de romper la operación; solo tira error si nunca hubo ninguna cotización cacheada.
+- [CambioDolaresService.java](../PayX-backend/src/main/java/com/payx/backend/service/CambioDolaresService.java): mismo patrón de bloqueo de cuenta (`findByIdConLock`) que transferencias y plazos fijos, para que dos operaciones simultáneas no puedan pasar juntas la validación de saldo (doble gasto). Al comprar se aplica el precio de **venta** (lo que paga el usuario); al vender, el precio de **compra** (lo que recibe) — la misma lógica que tendría cualquier casa de cambio real. La cotización aplicada queda "congelada" en la operación guardada, no cambia retroactivamente si la cotización de referencia sube o baja después.
+- [CotizacionController.java](../PayX-backend/src/main/java/com/payx/backend/controller/CotizacionController.java) (`GET /api/cotizacion/dolar`) y [CambioDolaresController.java](../PayX-backend/src/main/java/com/payx/backend/controller/CambioDolaresController.java) (`POST`/`GET /api/cambio-dolares`).
+- [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java): nuevo `notificarCambioDolares`. Hacen falta 2 plantillas nuevas en el panel de admin: `DOLARES_COMPRADOS` y `DOLARES_VENDIDOS` (variables disponibles: `{{montoUsd}}`, `{{monto}}` en pesos, `{{cotizacion}}`, `{{fecha}}`).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límites para `POST /api/cambio-dolares` (15/min) y `GET /api/cotizacion/dolar` (30/min).
+
+**Frontend:**
+- [cotizacionService.js](src/services/cotizacionService.js) y [cambioDolaresService.js](src/services/cambioDolaresService.js) (nuevos).
+- [CambioDolaresModal.jsx](src/components/CambioDolaresModal.jsx): dejó de simular todo. Pide la cotización real al backend al abrirse y la refresca cada 15s mientras está abierto (para no operar con un precio viejo si se lo deja abierto un rato largo), calcula el monto de salida con el precio real, y al confirmar crea la operación real contra el backend.
+- [Home.jsx](src/pages/Home.jsx): la cotización real (precio de venta) también se usa ahora para el "≈ $ tal en pesos" del modal de transferencia en dólares entre usuarios, reemplazando el `COTIZACION_USD` hardcodeado — mismo dato, un solo lugar de verdad. Se agregó `cambiosDolares` al estado y al polling (5s), y la cotización se refresca aparte cada 20s (pollearla más seguido no traería nada más fresco: el backend la cachea 60s).
+- [ActividadItem.jsx](src/components/ActividadItem.jsx): nueva variante `cambioDolares` (compra en verde +US$, venta en rojo -US$, con el monto en pesos como detalle). Sin vista de detalle propia (es una operación instantánea e inmutable, sin nada para confirmar/cancelar/editar), así que no es clickeable — se ajustó el componente para que la clase `clickeable` solo se aplique cuando el padre pasa un `onClick`.
+- [utils/actividad.js](src/utils/actividad.js): `construirActividades` ahora acepta un tercer argumento opcional con las operaciones de cambio.
+- [Movimientos.jsx](src/pages/Movimientos.jsx): también trae y muestra los cambios de dólares.
+
+**Tests:** [CotizacionServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/CotizacionServiceTest.java) (6 casos: cachea dentro de la ventana de 60s, refresca pasada esa ventana usando un reloj mutable de prueba, fallback a la última cotización conocida si el proveedor falla, error solo si nunca hubo cache) y [CambioDolaresServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/CambioDolaresServiceTest.java) (7 casos: cálculo y redondeo correcto en compra/venta, saldo insuficiente en cada sentido, la operación no se ejecuta si la cotización no está disponible, una notificación fallida no revierte la operación). **50/50 tests pasan** en todo el backend, incluyendo `PayxBackendApplicationTests.contextLoads` contra la tabla real — no quedó ningún test rojo pendiente de una migración manual.
+
+---
+
+### Ticker de cotización en vivo dentro de los modales de compra/venta
+
+Pedido: mostrar cómo sube y baja la cotización del dólar en tiempo real (compra en verde, venta en rojo) arriba del formulario, no como un elemento aparte en el Home.
+
+- [CotizacionTicker.jsx](src/components/CotizacionTicker.jsx) / [CotizacionTicker.css](src/components/CotizacionTicker.css) (nuevos): recibe la `cotizacion` que ya tenía el modal (no pide nada nuevo al backend) y compara cada valor contra el anterior con un `useRef` para saber si subió o bajó desde la última actualización; si cambió, flashea el fondo del valor afectado y muestra una flechita (invertida si bajó) durante 1.5s.
+- [CambioDolaresModal.jsx](src/components/CambioDolaresModal.jsx): el ticker se renderiza arriba del título, dentro del paso `form`. Como el modal ya refresca la cotización cada 15s mientras está abierto (para no operar con un precio viejo), el ticker se ve moverse solo con eso — no hizo falta agregar ningún polling nuevo.
+- Se probó primero como una barra debajo de "Inversiones" en el Home; se descartó ese lugar y se lo movió adentro de los modales de comprar/vender, que es donde tiene sentido verlo mientras se decide cuánto operar.
+
+---
+
+### Auditoría del módulo de compra/venta de dólares: cotización externa, redondeos y rate limit
+
+Mismo pedido que la auditoría de plazos fijos: romper el módulo a propósito (formularios, cotización, rate limit) y arreglar lo que fallara. Se encontraron y arreglaron 3 problemas reales, cada uno confirmado revirtiendo el fix a propósito y viendo caer el test correspondiente (para no terminar con tests que "pasarían igual" sin el arreglo):
+
+**1. BUG REAL — una cotización corrupta del proveedor externo se guardaba en el cache tal cual:** `CotizacionService` confiaba ciegamente en lo que devolviera `dolarapi.com`. Si esa API de terceros alguna vez respondiera con `compra`/`venta` en cero o negativo (mantenimiento, un bug de ellos, una respuesta corrupta), ese valor se cacheaba como si fuera válido — la siguiente compra/venta dividiría o multiplicaría por ese número sin sentido, moviendo plata real de forma incorrecta (o directamente reventando con una excepción de división por cero). Se agregó `validarCotizacion` en [CotizacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/CotizacionService.java): si el proveedor devuelve algo con `compra`/`venta` nulo, cero o negativo, se trata exactamente igual que una falla de red (usa la última cotización buena conocida marcada como `desactualizada`, o tira error si nunca hubo ninguna). 3 tests nuevos en `CotizacionServiceTest`.
+
+**2. BUG REAL — un monto muy chico podía cobrar pesos reales y entregar $0.00 dólares:** el mínimo del formulario era $0.01 (cualquier moneda), pero al redondear a 2 decimales, comprar dólares con menos de ~$7.65 pesos (a una cotización de referencia de $1530) da como resultado `montoUsd = 0.00` — el usuario pagaba esos pesos y no recibía ni un centavo a cambio. Se agregó una validación en [CambioDolaresService.java](../PayX-backend/src/main/java/com/payx/backend/service/CambioDolaresService.java) que rechaza la operación (sin tocar el saldo) si el monto calculado del otro lado redondea a cero o menos, tanto en `ejecutarCompra` como en `ejecutarVenta` (este último caso es prácticamente inalcanzable con una cotización real, pero se dejó simétrico para no confiar en que la cotización siempre va a ser "razonable"). 3 tests nuevos, incluyendo uno de límite exacto: $7.64 se rechaza, $7.65 se acepta (redondea a $0.01).
+
+**3. BUG REAL — el rate limit se podía esquivar del todo con una barra al final de la ruta:** [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java) arma la clave de conteo con `request.getRequestURI()` tal cual llega. Una request a `POST /api/cambio-dolares/` (con `/` final) o `POST //api//cambio-dolares` (barras repetidas) no matchea ninguna entrada del mapa de límites ni empieza con `/api/auth/`, así que el filtro la dejaba pasar **sin contarla ni frenarla nunca** — Spring después le respondería 404 igual (no hay ninguna ruta registrada con esa barra), pero mientras tanto el filtro nunca la limitaba, y alternar entre la ruta con y sin barra permitía superar el límite real de 15/min sobre el endpoint bueno combinando ambas variantes. Se agregó `normalizarPath` (saca barras finales y colapsa barras repetidas) antes de armar la clave. Confirmado revirtiendo el cambio: sin él, los tests con barra final vuelven a pasar el límite sin nunca recibir 429.
+
+Se creó [RateLimitFilterTest.java](../PayX-backend/src/test/java/com/payx/backend/security/RateLimitFilterTest.java) (nuevo, 8 casos) — el filtro no tenía tests propios hasta ahora. Cubre: dejar pasar dentro del límite, cortar con 429 al superarlo, que la barra final y las barras repetidas ahora sí cuenten para el mismo límite, contadores independientes por IP, y dos casos que documentan el comportamiento *actual y deliberado* del filtro (rutas fuera de `/api/auth/` y sin entrada propia en el mapa quedan sin límite; una ruta de auth sin entrada propia cae en el límite por defecto) para que un cambio futuro que lo altere sin querer se note en un test, no en producción.
+
+**64/64 tests pasan** en todo el backend (antes 50) — no quedó ningún hallazgo de esta auditoría sin arreglar ni sin test.
+
+---

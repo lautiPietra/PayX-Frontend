@@ -1,28 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconCheck, IconWallet, IconRefreshCw } from './icons/Icons';
+import { obtenerCotizacionDolar } from '../services/cotizacionService';
+import { crearCambioDolares } from '../services/cambioDolaresService';
+import CotizacionTicker from './CotizacionTicker';
 import './TransferModal.css';
 import './CambioDolaresModal.css';
 
 function formatearMonto(valor) {
-    return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Pantalla completa para comprar o vender dolares. "config" define si es compra o venta,
-// los simbolos de cada lado de la operacion, el saldo disponible (en la moneda que se
-// entrega) y la cotizacion aplicada. No hay backend de cambio de divisas todavia:
-// la operacion es una simulacion, igual que las transferencias y el plazo fijo.
-function CambioDolaresModal({ abierto, onCerrar, config }) {
+// Pantalla completa para comprar o vender dolares. "config" define si es compra o
+// venta, los simbolos de cada lado de la operacion, el saldo disponible (en la
+// moneda que se entrega) y los textos. La cotizacion ya NO se recibe por config:
+// se pide al backend (cotizacion oficial real, cacheada ahi) al abrir el modal y
+// se refresca cada 15s mientras este abierto, para no operar con un precio viejo
+// si el usuario lo deja abierto un rato largo.
+function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'exito'
+    const [cotizacion, setCotizacion] = useState(null);
+    const [cargandoCotizacion, setCargandoCotizacion] = useState(false);
     const [monto, setMonto] = useState('');
     const [error, setError] = useState('');
     const [enviando, setEnviando] = useState(false);
-
-    if (!abierto) return null;
+    const [resultado, setResultado] = useState(null);
 
     const esCompra = config.tipo === 'compra';
     const IconOperacion = config.IconBoton;
+
+    useEffect(() => {
+        if (!abierto) return;
+        setCargandoCotizacion(true);
+        obtenerCotizacionDolar()
+            .then(setCotizacion)
+            .catch(() => setError('No pudimos obtener la cotización del dólar. Probá de nuevo en un momento.'))
+            .finally(() => setCargandoCotizacion(false));
+    }, [abierto]);
+
+    useEffect(() => {
+        if (!abierto) return;
+        const intervalo = setInterval(() => {
+            obtenerCotizacionDolar().then(setCotizacion).catch(() => {});
+        }, 15000);
+        return () => clearInterval(intervalo);
+    }, [abierto]);
+
+    if (!abierto) return null;
+
+    const precioAplicado = cotizacion ? Number(esCompra ? cotizacion.venta : cotizacion.compra) : null;
     const montoEntrada = parseFloat(monto) || 0;
-    const montoSalida = esCompra ? montoEntrada / config.cotizacion : montoEntrada * config.cotizacion;
+    const montoSalida = precioAplicado ? (esCompra ? montoEntrada / precioAplicado : montoEntrada * precioAplicado) : 0;
     const saldoRestante = config.saldoDisponible - montoEntrada;
 
     function resetearYCerrar() {
@@ -32,6 +59,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
             setMonto('');
             setError('');
             setEnviando(false);
+            setResultado(null);
         }, 200);
     }
 
@@ -40,10 +68,14 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
         setError('');
     }
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
         setError('');
 
+        if (!precioAplicado) {
+            setError('Todavía no tenemos la cotización disponible.');
+            return;
+        }
         if (montoEntrada <= 0) {
             setError('Ingresá un monto válido.');
             return;
@@ -56,10 +88,19 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
         }
 
         setEnviando(true);
-        setTimeout(() => {
-            setEnviando(false);
+        try {
+            const creado = await crearCambioDolares({
+                tipo: esCompra ? 'COMPRA' : 'VENTA',
+                monto: montoEntrada,
+            });
+            setResultado(creado);
             setPaso('exito');
-        }, 900);
+            onExito?.();
+        } catch (err) {
+            setError(err.response?.data?.error || 'No se pudo realizar la operación. Intenta de nuevo.');
+        } finally {
+            setEnviando(false);
+        }
     }
 
     return (
@@ -79,6 +120,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
 
                     {paso === 'form' && (
                         <>
+                            <CotizacionTicker cotizacion={cotizacion} />
                             <h1 className="transfer-page-titulo">{config.titulo}</h1>
                             <p className="transfer-page-subtitulo">{config.subtitulo}</p>
 
@@ -109,7 +151,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
                                                 Usar todo
                                             </button>
                                         </div>
-                                        {montoEntrada > 0 && (
+                                        {montoEntrada > 0 && precioAplicado && (
                                             <p className="transfer-equivalente">
                                                 ≈ {config.simboloSalida} {formatearMonto(montoSalida)} al tipo de cambio actual
                                             </p>
@@ -118,7 +160,14 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
 
                                     <div className="cambio-dolares-info">
                                         <IconRefreshCw size={15} />
-                                        <span>Cotización de {esCompra ? 'compra' : 'venta'}: <strong>$ {formatearMonto(config.cotizacion)}</strong> por dólar.</span>
+                                        {precioAplicado ? (
+                                            <span>
+                                                Cotización de {esCompra ? 'venta' : 'compra'}: <strong>$ {formatearMonto(precioAplicado)}</strong> por dólar (oficial)
+                                                {cotizacion?.desactualizada && ' · sin poder actualizar en este momento'}
+                                            </span>
+                                        ) : (
+                                            <span>{cargandoCotizacion ? 'Buscando la cotización actual...' : 'No pudimos obtener la cotización.'}</span>
+                                        )}
                                     </div>
 
                                     {error && <div className="transfer-error">{error}</div>}
@@ -127,7 +176,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
                                         <button type="button" className="transfer-btn-cancelar" onClick={resetearYCerrar}>
                                             Cancelar
                                         </button>
-                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando}>
+                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando || !precioAplicado}>
                                             {enviando ? 'Procesando...' : (<><IconOperacion size={15} /> {config.tituloBoton}</>)}
                                         </button>
                                     </div>
@@ -146,7 +195,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
 
                                         <div className="transfer-resumen-fila">
                                             <span>Cotización</span>
-                                            <span>$ {formatearMonto(config.cotizacion)}</span>
+                                            <span>{precioAplicado ? `$ ${formatearMonto(precioAplicado)}` : '-'}</span>
                                         </div>
                                         <div className="transfer-resumen-fila">
                                             <span>{config.labelSaldo}</span>
@@ -163,7 +212,7 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
                         </>
                     )}
 
-                    {paso === 'exito' && (
+                    {paso === 'exito' && resultado && (
                         <div className="transfer-exito-page">
                             <div className="transfer-exito-icono">
                                 <IconCheck size={30} />
@@ -171,12 +220,12 @@ function CambioDolaresModal({ abierto, onCerrar, config }) {
                             <h1 className="transfer-page-titulo">{config.tituloExito}</h1>
                             <p className="transfer-exito-texto">
                                 {esCompra ? (
-                                    <>Compraste <strong>{config.simboloSalida} {formatearMonto(montoSalida)}</strong> pagando <strong>{config.simboloEntrada} {formatearMonto(montoEntrada)}</strong></>
+                                    <>Compraste <strong>US$ {formatearMonto(resultado.montoUsd)}</strong> pagando <strong>$ {formatearMonto(resultado.montoPesos)}</strong></>
                                 ) : (
-                                    <>Vendiste <strong>{config.simboloEntrada} {formatearMonto(montoEntrada)}</strong> y recibiste <strong>{config.simboloSalida} {formatearMonto(montoSalida)}</strong></>
+                                    <>Vendiste <strong>US$ {formatearMonto(resultado.montoUsd)}</strong> y recibiste <strong>$ {formatearMonto(resultado.montoPesos)}</strong></>
                                 )}
                             </p>
-                            <p className="transfer-exito-concepto">Cotización $ {formatearMonto(config.cotizacion)} por dólar</p>
+                            <p className="transfer-exito-concepto">Cotización $ {formatearMonto(resultado.cotizacion)} por dólar</p>
                             <button className="transfer-btn-continuar ancho-completo" onClick={resetearYCerrar}>
                                 Listo
                             </button>

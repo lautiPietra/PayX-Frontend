@@ -4,6 +4,9 @@ import Navbar from '../components/Navbar';
 import ActividadItem from '../components/ActividadItem';
 import TransferenciaDetalleModal from '../components/TransferenciaDetalleModal';
 import { listarTransferencias } from '../services/transferenciaService';
+import { listarPlazosFijos } from '../services/plazoFijoService';
+import { listarCambiosDolares } from '../services/cambioDolaresService';
+import { construirActividades } from '../utils/actividad';
 import { IconArrowLeft } from '../components/icons/Icons';
 import './Home.css';
 import './Movimientos.css';
@@ -11,27 +14,38 @@ import './Movimientos.css';
 function Movimientos() {
     const navigate = useNavigate();
     const [transferencias, setTransferencias] = useState([]);
+    const [plazosFijos, setPlazosFijos] = useState([]);
+    const [cambiosDolares, setCambiosDolares] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [detalleActivo, setDetalleActivo] = useState(null);
+
+    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares);
 
     useEffect(() => {
         cargar();
     }, []);
 
     // Polling: si otro usuario confirma o cancela una transferencia pendiente que
-    // tenes con el, no hay forma de enterarse sin preguntarle al backend de tanto
-    // en tanto (no hay websockets en este proyecto). Silencioso: no toca "cargando"
-    // para no reemplazar la lista por el cartel de "Cargando..." cada vez.
+    // tenes con el (o si un plazo fijo tuyo vencio y el scheduler ya lo acredito),
+    // no hay forma de enterarse sin preguntarle al backend de tanto en tanto (no hay
+    // websockets en este proyecto). Silencioso: no toca "cargando" para no reemplazar
+    // la lista por el cartel de "Cargando..." cada vez.
     useEffect(() => {
-        const intervalo = setInterval(refrescarSilencioso, 15000);
+        const intervalo = setInterval(refrescarSilencioso, 5000);
         return () => clearInterval(intervalo);
     }, []);
 
     async function cargar() {
         setCargando(true);
         try {
-            const datos = await listarTransferencias();
-            setTransferencias(datos);
+            const [datosTransferencias, datosPlazosFijos, datosCambios] = await Promise.all([
+                listarTransferencias(),
+                listarPlazosFijos(),
+                listarCambiosDolares(),
+            ]);
+            setTransferencias(datosTransferencias);
+            setPlazosFijos(datosPlazosFijos);
+            setCambiosDolares(datosCambios);
         } catch {
             // si falla, se muestra la lista vacia
         } finally {
@@ -41,9 +55,15 @@ function Movimientos() {
 
     async function refrescarSilencioso() {
         try {
-            const datos = await listarTransferencias();
-            setTransferencias(datos);
-            setDetalleActivo((actual) => (actual ? datos.find((t) => t.id === actual.id) || actual : actual));
+            const [datosTransferencias, datosPlazosFijos, datosCambios] = await Promise.all([
+                listarTransferencias(),
+                listarPlazosFijos(),
+                listarCambiosDolares(),
+            ]);
+            setTransferencias(datosTransferencias);
+            setPlazosFijos(datosPlazosFijos);
+            setCambiosDolares(datosCambios);
+            setDetalleActivo((actual) => (actual ? datosTransferencias.find((t) => t.id === actual.id) || actual : actual));
         } catch {
             // si falla, se mantiene la lista tal como estaba
         }
@@ -66,18 +86,28 @@ function Movimientos() {
                 </button>
 
                 <h1 className="movimientos-titulo">Todos tus movimientos</h1>
-                <p className="movimientos-subtitulo">Transferencias enviadas y recibidas</p>
+                <p className="movimientos-subtitulo">Transferencias, plazos fijos y compra/venta de dólares</p>
 
                 {cargando && <p className="movimientos-cargando">Cargando movimientos...</p>}
 
-                {!cargando && transferencias.length === 0 && (
+                {!cargando && actividades.length === 0 && (
                     <p className="home-actividad-vacio">Todavía no tenés movimientos</p>
                 )}
 
-                {!cargando && transferencias.length > 0 && (
+                {!cargando && actividades.length > 0 && (
                     <div className="home-actividad-lista">
-                        {transferencias.map((t) => (
-                            <ActividadItem key={t.id} transferencia={t} onClick={() => setDetalleActivo(t)} />
+                        {actividades.map((item) => (
+                            <ActividadItem
+                                key={item.key}
+                                transferencia={item.transferencia}
+                                plazoFijoEvento={item.plazoFijoEvento}
+                                cambioDolares={item.cambioDolares}
+                                onClick={
+                                    item.transferencia ? () => setDetalleActivo(item.transferencia)
+                                        : item.plazoFijoEvento ? () => navigate('/plazos-fijos')
+                                            : undefined
+                                }
+                            />
                         ))}
                     </div>
                 )}

@@ -1,53 +1,81 @@
-import { useState } from 'react';
-import { IconX, IconArrowLeft, IconCheck, IconWallet, IconChevronDown, IconCalendar, IconPercent } from './icons/Icons';
+import { useState, useEffect } from 'react';
+import { IconX, IconArrowLeft, IconCheck, IconWallet, IconChevronDown, IconCalendar, IconPercent, IconFileText } from './icons/Icons';
+import { obtenerTasasPlazoFijo, crearPlazoFijo } from '../services/plazoFijoService';
 import './TransferModal.css';
 import './PlazoFijoModal.css';
 
-const PLAZOS = [
-    { dias: 30, tna: 35 },
-    { dias: 60, tna: 36.5 },
-    { dias: 90, tna: 38 },
-    { dias: 180, tna: 40 },
-    { dias: 365, tna: 42 },
-];
-
-const MONTO_MINIMO = 1000;
-
 function formatearMonto(valor) {
-    return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatearFecha(dias) {
+// El backend manda fechas puras "yyyy-MM-dd" (sin hora): parsearlas con
+// `new Date(str)` las interpreta como medianoche UTC, y en un huso horario
+// negativo (Argentina, UTC-3) `toLocaleDateString` puede mostrar un día antes
+// del que corresponde. Se arma la fecha en horario local a mano para evitarlo.
+function crearFechaLocal(fechaIso) {
+    const soloFecha = fechaIso.split('T')[0];
+    const [anio, mes, dia] = soloFecha.split('-').map(Number);
+    return new Date(anio, mes - 1, dia);
+}
+
+function formatearFecha(fecha) {
+    const d = fecha instanceof Date ? fecha : crearFechaLocal(fecha);
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+function fechaVencimientoEstimada(dias) {
     const fecha = new Date();
     fecha.setDate(fecha.getDate() + dias);
-    return fecha.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    return fecha;
 }
 
-// Pantalla completa para constituir un plazo fijo. No hay backend de inversiones
-// todavia, asi que el calculo de interes es solo una simulacion para mostrar el diseño.
-function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
+// Pantalla completa para constituir un plazo fijo. Las tasas y el monto minimo
+// vienen del backend (no se hardcodean aca): es la unica fuente de verdad para el
+// calculo de interes real que se acredita al vencimiento. "onVerMisPlazosFijos"
+// abre el modal con el listado de plazos fijos ya constituidos.
+function PlazoFijoModal({ abierto, onCerrar, saldoDisponible, onExito, onVerMisPlazosFijos }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'exito'
+    const [tasas, setTasas] = useState([]);
+    const [montoMinimo, setMontoMinimo] = useState(0);
     const [monto, setMonto] = useState('');
-    const [plazoDias, setPlazoDias] = useState(String(PLAZOS[0].dias));
+    const [plazoDias, setPlazoDias] = useState('');
     const [error, setError] = useState('');
+    const [cargandoTasas, setCargandoTasas] = useState(false);
     const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState(null);
+
+    useEffect(() => {
+        if (!abierto) return;
+        setCargandoTasas(true);
+        obtenerTasasPlazoFijo()
+            .then((data) => {
+                setTasas(data.tasas);
+                setMontoMinimo(Number(data.montoMinimo));
+                if (data.tasas.length > 0) {
+                    setPlazoDias((actual) => actual || String(data.tasas[0].dias));
+                }
+            })
+            .catch(() => setError('No pudimos cargar las tasas disponibles. Probá de nuevo en un momento.'))
+            .finally(() => setCargandoTasas(false));
+    }, [abierto]);
 
     if (!abierto) return null;
 
-    const plazo = PLAZOS.find((p) => p.dias === Number(plazoDias)) || PLAZOS[0];
+    const plazo = tasas.find((p) => p.dias === Number(plazoDias));
     const montoNumero = parseFloat(monto) || 0;
-    const interesEstimado = montoNumero * (plazo.tna / 100) * (plazo.dias / 365);
+    const interesEstimado = plazo ? montoNumero * (Number(plazo.tna) / 100) * (plazo.dias / 365) : 0;
     const totalAlVencimiento = montoNumero + interesEstimado;
-    const fechaVencimiento = formatearFecha(plazo.dias);
+    const fechaVencimiento = plazo ? formatearFecha(fechaVencimientoEstimada(plazo.dias)) : '';
 
     function resetearYCerrar() {
         onCerrar();
         setTimeout(() => {
             setPaso('form');
             setMonto('');
-            setPlazoDias(String(PLAZOS[0].dias));
+            setPlazoDias('');
             setError('');
             setEnviando(false);
+            setResultado(null);
         }, 200);
     }
 
@@ -56,16 +84,20 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
         setError('');
     }
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
         setError('');
 
+        if (!plazo) {
+            setError('Elegí un plazo válido.');
+            return;
+        }
         if (montoNumero <= 0) {
             setError('Ingresá un monto válido.');
             return;
         }
-        if (montoNumero < MONTO_MINIMO) {
-            setError(`El monto mínimo para constituir un plazo fijo es $ ${formatearMonto(MONTO_MINIMO)}.`);
+        if (montoNumero < montoMinimo) {
+            setError(`El monto mínimo para constituir un plazo fijo es $ ${formatearMonto(montoMinimo)}.`);
             return;
         }
         if (montoNumero > saldoDisponible) {
@@ -74,10 +106,16 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
         }
 
         setEnviando(true);
-        setTimeout(() => {
-            setEnviando(false);
+        try {
+            const creado = await crearPlazoFijo({ monto: montoNumero, plazoDias: plazo.dias });
+            setResultado(creado);
             setPaso('exito');
-        }, 900);
+            onExito?.();
+        } catch (err) {
+            setError(err.response?.data?.error || 'No se pudo constituir el plazo fijo. Intenta de nuevo.');
+        } finally {
+            setEnviando(false);
+        }
     }
 
     return (
@@ -97,8 +135,17 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
 
                     {paso === 'form' && (
                         <>
-                            <h1 className="transfer-page-titulo">Constituir un plazo fijo</h1>
-                            <p className="transfer-page-subtitulo">Elegí cuánto querés invertir y por cuánto tiempo</p>
+                            <div className="plazo-fijo-titulo-fila">
+                                <div>
+                                    <h1 className="transfer-page-titulo">Constituir un plazo fijo</h1>
+                                    <p className="transfer-page-subtitulo">Elegí cuánto querés invertir y por cuánto tiempo</p>
+                                </div>
+                                {onVerMisPlazosFijos && (
+                                    <button type="button" className="plazo-fijo-link-mis" onClick={onVerMisPlazosFijos}>
+                                        <IconFileText size={14} /> Ver mis plazos fijos
+                                    </button>
+                                )}
+                            </div>
 
                             <div className="transfer-page-grid">
 
@@ -132,8 +179,13 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
                                     <div className="transfer-campo">
                                         <label>Plazo</label>
                                         <div className="transfer-select-wrapper">
-                                            <select value={plazoDias} onChange={(e) => setPlazoDias(e.target.value)}>
-                                                {PLAZOS.map((p) => (
+                                            <select
+                                                value={plazoDias}
+                                                onChange={(e) => setPlazoDias(e.target.value)}
+                                                disabled={cargandoTasas || tasas.length === 0}
+                                            >
+                                                {tasas.length === 0 && <option value="">Cargando plazos...</option>}
+                                                {tasas.map((p) => (
                                                     <option key={p.dias} value={p.dias}>
                                                         {p.dias} días · TNA {p.tna}%
                                                     </option>
@@ -143,10 +195,12 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
                                         </div>
                                     </div>
 
-                                    <div className="plazo-fijo-info">
-                                        <IconCalendar size={15} />
-                                        <span>El dinero queda inmovilizado hasta el <strong>{fechaVencimiento}</strong>, fecha de vencimiento.</span>
-                                    </div>
+                                    {plazo && (
+                                        <div className="plazo-fijo-info">
+                                            <IconCalendar size={15} />
+                                            <span>El dinero queda inmovilizado hasta el <strong>{fechaVencimiento}</strong>. Ese día se acredita solo, junto con el interés.</span>
+                                        </div>
+                                    )}
 
                                     {error && <div className="transfer-error">{error}</div>}
 
@@ -154,7 +208,7 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
                                         <button type="button" className="transfer-btn-cancelar" onClick={resetearYCerrar}>
                                             Cancelar
                                         </button>
-                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando}>
+                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando || cargandoTasas || !plazo}>
                                             {enviando ? 'Procesando...' : (<><IconPercent size={15} /> Constituir plazo fijo</>)}
                                         </button>
                                     </div>
@@ -165,7 +219,7 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
                                         <p className="transfer-resumen-label">Vas a invertir</p>
                                         <p className="transfer-resumen-monto">$ {formatearMonto(montoNumero)}</p>
 
-                                        <p className="transfer-resumen-detalle-motivo">{plazo.dias} días · TNA {plazo.tna}%</p>
+                                        {plazo && <p className="transfer-resumen-detalle-motivo">{plazo.dias} días · TNA {plazo.tna}%</p>}
 
                                         <div className="transfer-resumen-divisor" />
 
@@ -191,16 +245,18 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible }) {
                         </>
                     )}
 
-                    {paso === 'exito' && (
+                    {paso === 'exito' && resultado && (
                         <div className="transfer-exito-page">
                             <div className="transfer-exito-icono">
                                 <IconCheck size={30} />
                             </div>
                             <h1 className="transfer-page-titulo">¡Plazo fijo constituido!</h1>
                             <p className="transfer-exito-texto">
-                                Invertiste <strong>$ {formatearMonto(montoNumero)}</strong> a <strong>{plazo.dias} días</strong> con una TNA del <strong>{plazo.tna}%</strong>
+                                Invertiste <strong>$ {formatearMonto(resultado.monto)}</strong> a <strong>{resultado.plazoDias} días</strong> con una TNA del <strong>{Number(resultado.tna)}%</strong>
                             </p>
-                            <p className="transfer-exito-concepto">Cobrás $ {formatearMonto(totalAlVencimiento)} el {fechaVencimiento}</p>
+                            <p className="transfer-exito-concepto">
+                                Cobrás $ {formatearMonto(resultado.montoTotal)} el {formatearFecha(resultado.fechaVencimiento)}, sin que tengas que hacer nada
+                            </p>
                             <button className="transfer-btn-continuar ancho-completo" onClick={resetearYCerrar}>
                                 Listo
                             </button>

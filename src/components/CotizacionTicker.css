@@ -1,0 +1,90 @@
+.cotizacion-ticker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+}
+
+.cotizacion-ticker-titulo {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #6b7280;
+    white-space: nowrap;
+}
+
+.cotizacion-ticker-punto {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #059669;
+    box-shadow: 0 0 0 rgba(5, 150, 105, 0.5);
+    animation: cotizacion-ticker-latido 2s infinite;
+    flex-shrink: 0;
+}
+
+.cotizacion-ticker-desactualizada {
+    color: #d97706;
+    font-weight: 500;
+}
+
+.cotizacion-ticker-valores {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+}
+
+.cotizacion-ticker-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-radius: 10px;
+    transition: background-color 0.4s ease;
+}
+
+.cotizacion-ticker-label {
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: #9ca3af;
+}
+
+.cotizacion-ticker-precio {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.cotizacion-ticker-item.compra .cotizacion-ticker-precio { color: #059669; }
+.cotizacion-ticker-item.venta .cotizacion-ticker-precio { color: #dc2626; }
+
+.cotizacion-ticker-flecha { flex-shrink: 0; }
+.cotizacion-ticker-flecha.baja { transform: scaleY(-1); }
+
+.cotizacion-ticker-item.compra.flash-sube { background-color: rgba(5, 150, 105, 0.14); }
+.cotizacion-ticker-item.compra.flash-baja { background-color: rgba(220, 38, 38, 0.1); }
+.cotizacion-ticker-item.venta.flash-sube { background-color: rgba(5, 150, 105, 0.14); }
+.cotizacion-ticker-item.venta.flash-baja { background-color: rgba(220, 38, 38, 0.1); }
+
+@keyframes cotizacion-ticker-latido {
+    0% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.5); }
+    70% { box-shadow: 0 0 0 6px rgba(5, 150, 105, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+}
+
+@media (max-width: 480px) {
+    .cotizacion-ticker { padding: 10px 14px; }
+    .cotizacion-ticker-valores { gap: 6px; }
+    .cotizacion-ticker-item { padding: 6px 9px; }
+}

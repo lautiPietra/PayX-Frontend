@@ -9,6 +9,7 @@ import VerificarCodigoReset from './pages/VerificarCodigoReset';
 import NuevaPassword from './pages/NuevaPassword';
 import Perfil from './pages/Perfil';
 import Movimientos from './pages/Movimientos';
+import PlazosFijos from './pages/PlazosFijos';
 import AdminPanel from './pages/AdminPanel';
 import { estaLogueado, esAdmin } from './services/authService';
 import AltaPlantilla from "./pages/AltaPlantilla";
@@ -40,6 +41,7 @@ function App() {
             <Route path="/inicio" element={<RutaPrivada><Home /></RutaPrivada>} />
             <Route path="/perfil" element={<RutaPrivada><Perfil /></RutaPrivada>} />
             <Route path="/movimientos" element={<RutaPrivada><Movimientos /></RutaPrivada>} />
+            <Route path="/plazos-fijos" element={<RutaPrivada><PlazosFijos /></RutaPrivada>} />
             <Route path="/admin" element={<RutaAdmin><AdminPanel /></RutaAdmin>} />
             <Route path="/admin/plantillas/nueva" element={<RutaAdmin><AltaPlantilla /></RutaAdmin>} />
             <Route path="/admin/plantillas/:id/editar" element={<RutaAdmin><EditarPlantilla /></RutaAdmin>} />

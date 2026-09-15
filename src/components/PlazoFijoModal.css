@@ -20,3 +20,100 @@
 .plazo-fijo-info strong {
     color: #1a1a1a;
 }
+
+.plazo-fijo-titulo-fila {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.plazo-fijo-link-mis {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    color: #ff6b1a;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 6px 0;
+    white-space: nowrap;
+    font-family: inherit;
+}
+
+.plazo-fijo-link-mis:hover {
+    text-decoration: underline;
+}
+
+.plazo-fijo-lista-items {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.plazo-fijo-item {
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px;
+}
+
+.plazo-fijo-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.plazo-fijo-item-monto {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+.plazo-fijo-item-badge {
+    font-size: 11.5px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 20px;
+}
+
+.plazo-fijo-item-badge.activo {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.plazo-fijo-item-badge.vencido {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.plazo-fijo-item-filas {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.plazo-fijo-item-fila {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+}
+
+.plazo-fijo-item-fila span:first-child {
+    color: #9ca3af;
+}
+
+.plazo-fijo-item-fila span:last-child {
+    color: #1a1a1a;
+    font-weight: 500;
+    text-align: right;
+}
+
+.plazo-fijo-item-fila.destacado span:last-child {
+    color: #16a34a;
+    font-weight: 700;
+}

@@ -1,0 +1,32 @@
+.plazos-fijos-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.plazos-fijos-btn-nuevo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: none;
+    background: #ff6b1a;
+    color: #ffffff;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.plazos-fijos-btn-nuevo:hover:not(:disabled) {
+    background: #e85f14;
+}
+
+.plazos-fijos-btn-nuevo:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+}

@@ -11,6 +11,10 @@ const TITULOS_PLANTILLA = {
     INICIO_SES: 'Inicio de sesión',
     TRANSFERENCIA_ENVIADA: 'Transferencia enviada',
     TRANSFERENCIA_RECIBIDA: 'Transferencia recibida',
+    PLAZO_FIJO_CONSTITUIDO: 'Plazo fijo constituido',
+    PLAZO_FIJO_VENCIDO: 'Plazo fijo acreditado',
+    DOLARES_COMPRADOS: 'Compra de dólares',
+    DOLARES_VENDIDOS: 'Venta de dólares',
 };
 
 function formatearHora(fechaIso) {
@@ -39,7 +43,7 @@ function Navbar() {
 
     // Trae las notificaciones no leidas del usuario al montar el navbar, cada vez que
     // se dispara este evento (ej: recien se envio/confirmo una transferencia propia),
-    // y ademas cada 15s por polling: si OTRO usuario confirma/cancela algo con vos,
+    // y ademas cada 5s por polling: si OTRO usuario confirma/cancela algo con vos,
     // no hay forma de que tu navegador se entere solo sin preguntarle al backend.
     useEffect(() => {
         const cargarNotificaciones = () => {
@@ -47,7 +51,7 @@ function Navbar() {
         };
         cargarNotificaciones();
         window.addEventListener('notificaciones-actualizadas', cargarNotificaciones);
-        const intervalo = setInterval(cargarNotificaciones, 15000);
+        const intervalo = setInterval(cargarNotificaciones, 5000);
         return () => {
             window.removeEventListener('notificaciones-actualizadas', cargarNotificaciones);
             clearInterval(intervalo);
