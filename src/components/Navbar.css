@@ -34,29 +34,20 @@
   opacity: 0.8;
 }
 
-.navbar-logo-box {
-  width: 44px;
-  height: 44px;
-  background-color: #000000;
-  border-radius: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  overflow: hidden;
-}
-
-.navbar-logo-box img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  padding: 5px;
-}
-
-.navbar-marca {
+.navbar-logo-texto {
+  font-size: 27px;
+  font-weight: 800;
   font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-  font-size: 22px;
-  font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.navbar-logo-pay {
+  color: #1a1a1a;
+}
+
+.navbar-logo-x {
+  color: #ff6b1a;
 }
 
 /* ===== Links centrales (desktop) ===== */
@@ -96,8 +87,8 @@
   flex-shrink: 0;
 }
 
-/* ===== Acciones de usuario (desktop) ===== */
-.navbar-acciones {
+/* ===== Acciones de usuario (solo desktop: avatar + cerrar sesion) ===== */
+.navbar-acciones-usuario {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -432,20 +423,6 @@
   margin: 0;
 }
 
-.navbar-menu-notificaciones {
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  overflow: hidden;
-}
-
-.navbar-menu-notificaciones .navbar-notificaciones-header {
-  background-color: #f9fafb;
-}
-
-.navbar-menu-notificaciones .navbar-notificaciones-lista {
-  max-height: 280px;
-}
-
 .navbar-menu-links {
   display: flex;
   flex-direction: column;
@@ -511,10 +488,15 @@
   to { opacity: 1; }
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 768px) {
+/* ===== Responsive =====
+   768px se quedaba corto: los links + notificaciones + avatar + nombre + logout
+   ya no entraban en una sola fila bastante antes de esa medida (ej: 870px de
+   ancho) y el navbar se rompia/desbordaba. 1024px deja margen de sobra para
+   que el menu de 3 puntitos aparezca antes de que eso pase, en cualquier
+   resolucion intermedia. */
+@media (max-width: 1024px) {
   .navbar-links,
-  .navbar-acciones {
+  .navbar-acciones-usuario {
     display: none;
   }
 
@@ -522,7 +504,20 @@
     display: flex;
   }
 
-  .navbar-marca {
-    font-size: 20px;
+  /* Al ocultarse links y acciones-usuario, notificaciones queda como unico
+     elemento entre el logo y la hamburguesa: con justify-content:space-between
+     en el contenedor, el flex la empuja al centro. margin-left:auto la pega
+     (a ella y a la hamburguesa) contra el borde derecho, al lado de los 3 puntos. */
+  .navbar-notificaciones {
+    margin-left: auto;
+  }
+
+  /* Antes quedaba como un cajon de 320px/85% que dejaba ver, oscurecido, un
+     borde de la pagina de atras a los costados (y la barra de arriba real, con
+     el logo y el boton de cerrar, se notaba superpuesta). A pantalla completa
+     no queda ese recorte ni la superposicion: todo el fondo se ve blanco. */
+  .navbar-menu-mobile {
+    width: 100%;
+    max-width: 100%;
   }
 }

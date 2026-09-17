@@ -251,25 +251,6 @@ export function IconSend(props) {
     );
 }
 
-export function IconQrCode(props) {
-    return (
-        <IconBase {...props}>
-            <rect x="3" y="3" width="5" height="5" rx="1" />
-            <rect x="16" y="3" width="5" height="5" rx="1" />
-            <rect x="3" y="16" width="5" height="5" rx="1" />
-            <path d="M21 16h-3a2 2 0 0 0-2 2v3" />
-            <path d="M21 21v.01" />
-            <path d="M12 7v3a2 2 0 0 1-2 2H7" />
-            <path d="M3 12h.01" />
-            <path d="M12 3h.01" />
-            <path d="M12 16v.01" />
-            <path d="M16 12h1" />
-            <path d="M21 12v.01" />
-            <path d="M12 21v-1" />
-        </IconBase>
-    );
-}
-
 export function IconPiggyBank(props) {
     return (
         <IconBase {...props}>
@@ -400,6 +381,158 @@ export function IconX(props) {
         <IconBase {...props}>
             <path d="M18 6 6 18" />
             <path d="m6 6 12 12" />
+        </IconBase>
+    );
+}
+
+export function IconCopy(props) {
+    return (
+        <IconBase {...props}>
+            <rect x="9" y="9" width="13" height="13" rx="2" />
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+        </IconBase>
+    );
+}
+
+// ===== Iconos para elegir el "tema" de una caja de ahorro =====
+
+export function IconTarget(props) {
+    return (
+        <IconBase {...props}>
+            <circle cx="12" cy="12" r="10" />
+            <circle cx="12" cy="12" r="6" />
+            <circle cx="12" cy="12" r="2" />
+        </IconBase>
+    );
+}
+
+export function IconShield(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        </IconBase>
+    );
+}
+
+export function IconBriefcase(props) {
+    return (
+        <IconBase {...props}>
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        </IconBase>
+    );
+}
+
+export function IconUmbrella(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M23 12a11.05 11.05 0 0 0-22 0z" />
+            <path d="M18 12a6 6 0 0 1-12 0" />
+            <line x1="12" y1="2" x2="12" y2="12" />
+            <path d="M12 20a2 2 0 0 0 2-2v-6h-4v6a2 2 0 0 0 2 2z" />
+        </IconBase>
+    );
+}
+
+export function IconHeart(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78Z" />
+        </IconBase>
+    );
+}
+
+export function IconGift(props) {
+    return (
+        <IconBase {...props}>
+            <rect x="2" y="8" width="20" height="5" />
+            <path d="M4 13h16v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7Z" />
+            <line x1="12" y1="8" x2="12" y2="22" />
+            <path d="M12 8H7.5a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8Z" />
+            <path d="M12 8h4.5a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8Z" />
+        </IconBase>
+    );
+}
+
+export function IconShoppingBag(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <path d="M16 10a4 4 0 0 1-8 0" />
+        </IconBase>
+    );
+}
+
+export function IconBookOpen(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2Z" />
+            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7Z" />
+        </IconBase>
+    );
+}
+
+export function IconZap(props) {
+    return (
+        <IconBase {...props}>
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+        </IconBase>
+    );
+}
+
+export function IconFlame(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+        </IconBase>
+    );
+}
+
+export function IconDroplet(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M12 2.69 17.66 8.35a8 8 0 1 1-11.31 0Z" />
+        </IconBase>
+    );
+}
+
+export function IconWifi(props) {
+    return (
+        <IconBase {...props}>
+            <path d="M5 12.55a11 11 0 0 1 14.08 0" />
+            <path d="M1.42 9a16 16 0 0 1 21.16 0" />
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+            <line x1="12" y1="20" x2="12.01" y2="20" />
+        </IconBase>
+    );
+}
+
+export function IconTv(props) {
+    return (
+        <IconBase {...props}>
+            <rect x="2" y="7" width="20" height="15" rx="2" />
+            <polyline points="17 2 12 7 7 2" />
+        </IconBase>
+    );
+}
+
+export function IconBarChart(props) {
+    return (
+        <IconBase {...props}>
+            <line x1="12" y1="20" x2="12" y2="10" />
+            <line x1="18" y1="20" x2="18" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="16" />
+        </IconBase>
+    );
+}
+
+export function IconMoreVertical(props) {
+    return (
+        <IconBase {...props}>
+            <circle cx="12" cy="5" r="1.2" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none" />
         </IconBase>
     );
 }

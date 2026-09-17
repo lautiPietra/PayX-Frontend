@@ -1,0 +1,32 @@
+.estadistica-barras {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.estadistica-barras-grafico {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 140px;
+    padding: 0 2px;
+}
+
+.estadistica-barra {
+    flex: 1;
+    min-width: 2px;
+    background: linear-gradient(180deg, #ff8b4d, #ff6b1a);
+    border-radius: 3px 3px 0 0;
+    transition: opacity 0.15s, transform 0.3s ease;
+}
+
+.estadistica-barra:hover {
+    opacity: 0.8;
+}
+
+.estadistica-barras-eje {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11.5px;
+    color: #9ca3af;
+}

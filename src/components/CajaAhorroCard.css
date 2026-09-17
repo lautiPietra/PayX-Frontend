@@ -1,0 +1,219 @@
+.caja-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background-color: #ffffff;
+    transition: box-shadow 0.2s;
+}
+
+.caja-card:hover {
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+}
+
+.caja-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.caja-card-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    color: #ffffff;
+    flex-shrink: 0;
+}
+
+.caja-card-menu {
+    position: relative;
+}
+
+.caja-card-menu-boton {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: none;
+    border-radius: 8px;
+    color: #9ca3af;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.caja-card-menu-boton:hover {
+    background-color: #f3f4f6;
+    color: #1a1a1a;
+}
+
+.caja-card-menu-panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    min-width: 140px;
+    background-color: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+    z-index: 10;
+    overflow: hidden;
+    animation: cajaCardMenuIn 0.15s ease;
+}
+
+@keyframes cajaCardMenuIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.caja-card-menu-panel button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    background: none;
+    font-size: 13px;
+    font-weight: 500;
+    color: #4b5563;
+    cursor: pointer;
+    font-family: inherit;
+    text-align: left;
+    transition: background-color 0.15s;
+}
+
+.caja-card-menu-panel button:hover {
+    background-color: #f9fafb;
+}
+
+.caja-card-menu-panel button.peligro {
+    color: #dc2626;
+}
+
+.caja-card-nombre {
+    margin: 0;
+    font-size: 15.5px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.caja-card-saldo {
+    margin: 2px 0 14px;
+    font-size: 24px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.caja-card-sin-meta {
+    margin: 0 0 16px;
+    font-size: 12.5px;
+    color: #9ca3af;
+}
+
+.caja-card-meta-fila {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.caja-card-anillo {
+    position: relative;
+    width: 64px;
+    height: 64px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.caja-card-anillo-texto {
+    position: absolute;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a1a1a;
+}
+
+.caja-card-meta-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.caja-card-meta-label {
+    font-size: 10.5px;
+    color: #9ca3af;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.caja-card-meta-valor {
+    font-size: 14px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.caja-card-meta-restante {
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.caja-card-meta-restante.cumplida {
+    color: #16a34a;
+    font-weight: 600;
+}
+
+.caja-card-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.caja-card-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 10px;
+    background-color: #ff6b1a;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.2s;
+}
+
+.caja-card-btn:hover {
+    background-color: #e85d0f;
+}
+
+.caja-card-btn.secundario {
+    background-color: #ffffff;
+    border: 1.5px solid #e5e7eb;
+    color: #4b5563;
+}
+
+.caja-card-btn.secundario:hover:not(:disabled) {
+    background-color: #f9fafb;
+}
+
+.caja-card-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

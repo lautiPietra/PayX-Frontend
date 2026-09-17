@@ -1,0 +1,105 @@
+.caja-modal-contenedor {
+    max-width: 480px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.caja-modal-preview {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 22px;
+    border-radius: 16px;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+    animation: cajaModalPreviewIn 0.3s ease;
+}
+
+@keyframes cajaModalPreviewIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.caja-modal-preview-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background-color: rgba(255, 255, 255, 0.22);
+    flex-shrink: 0;
+}
+
+.caja-modal-preview-nombre {
+    font-size: 17px;
+    font-weight: 700;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.caja-modal-colores {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.caja-modal-color {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    transition: transform 0.15s;
+}
+
+.caja-modal-color:hover {
+    transform: scale(1.08);
+}
+
+.caja-modal-color.activo {
+    box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px #1a1a1a;
+}
+
+.caja-modal-iconos {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 8px;
+}
+
+.caja-modal-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 40px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    background-color: #ffffff;
+    color: #6b7280;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.caja-modal-icono:hover {
+    background-color: #f9fafb;
+}
+
+.caja-modal-icono.activo {
+    border-color: #ff6b1a;
+    background-color: #fff7f0;
+    color: #ff6b1a;
+}
+
+@media (max-width: 480px) {
+    .caja-modal-iconos {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

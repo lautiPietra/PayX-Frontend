@@ -1,0 +1,5 @@
+.tarjeta-pagina-contenido {
+    display: flex;
+    justify-content: center;
+    margin-top: 28px;
+}

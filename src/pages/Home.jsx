@@ -17,9 +17,9 @@ import { obtenerCotizacionesCripto } from '../services/cotizacionCriptoService';
 import { construirActividades } from '../utils/actividad';
 import { useValorAnimado } from '../hooks/useValorAnimado';
 import {
-    IconSend, IconQrCode, IconPiggyBank,
+    IconSend, IconPiggyBank,
     IconDollarSign, IconArrowDownCircle, IconArrowUpCircle, IconCoins,
-    IconCreditCard, IconTrendingUp, IconEye, IconEyeOff, IconFileText
+    IconCreditCard, IconTrendingUp, IconEye, IconEyeOff, IconFileText, IconTarget, IconBarChart, IconZap
 } from '../components/icons/Icons';
 import './Home.css';
 
@@ -27,13 +27,15 @@ const ACCIONES_GENERALES = [
     { label: 'Transferir', Icon: IconSend, accion: 'transferir-pesos' },
     { label: 'Transferencia en dólares', Icon: IconDollarSign, accion: 'transferir-dolares' },
     { label: 'Transferencia en cripto', Icon: IconCoins, accion: 'transferir-cripto' },
-    { label: 'Pagar con QR', Icon: IconQrCode },
-    { label: 'Tarjeta virtual', Icon: IconCreditCard },
+    { label: 'Pagar servicios', Icon: IconZap, accion: 'servicios' },
+    { label: 'Tarjeta virtual', Icon: IconCreditCard, accion: 'tarjeta' },
+    { label: 'Estadísticas', Icon: IconBarChart, accion: 'estadisticas' },
 ];
 
 const ACCIONES_INVERSION = [
     { label: 'Plazos fijos', Icon: IconPiggyBank, accion: 'plazo-fijo' },
     { label: 'Mis plazos fijos', Icon: IconFileText, accion: 'mis-plazos-fijos' },
+    { label: 'Cajas de ahorro', Icon: IconTarget, accion: 'caja-ahorro' },
     { label: 'Comprar dólares', Icon: IconArrowDownCircle, accion: 'comprar-dolares' },
     { label: 'Vender dólares', Icon: IconArrowUpCircle, accion: 'vender-dolares' },
     { label: 'Comprar criptomonedas', Icon: IconCoins, accion: 'comprar-cripto' },
@@ -334,6 +336,10 @@ function Home() {
         if (accion === 'vender-dolares') { setCambioDolaresActivo('venta'); return; }
         if (accion === 'comprar-cripto') { setCambioCriptoActivo('compra'); return; }
         if (accion === 'vender-cripto') { setCambioCriptoActivo('venta'); return; }
+        if (accion === 'tarjeta') { navigate('/tarjeta'); return; }
+        if (accion === 'caja-ahorro') { navigate('/cajas-ahorro'); return; }
+        if (accion === 'estadisticas') { navigate('/estadisticas'); return; }
+        if (accion === 'servicios') { navigate('/servicios'); return; }
         mostrarProximamente();
     };
 
@@ -434,7 +440,7 @@ function Home() {
                         <p className="home-promo-texto">
                             Invertí el saldo de tu cuenta y generá rendimientos todos los días, sin plazos ni mínimos.
                         </p>
-                        <button className="home-btn-promo" onClick={mostrarProximamente}>
+                        <button className="home-btn-promo" onClick={() => navigate('/plazos-fijos')}>
                             Quiero invertir
                         </button>
                     </div>
@@ -458,7 +464,7 @@ function Home() {
 
                 {/* Inversiones */}
                 <h2 className="home-seccion-titulo">Inversiones</h2>
-                <div className="home-acciones-grid">
+                <div className="home-acciones-grid home-acciones-grid-inversiones">
                     {ACCIONES_INVERSION.map((accion, i) => (
                         <button
                             key={accion.label}

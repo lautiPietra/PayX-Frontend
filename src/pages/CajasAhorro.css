@@ -1,0 +1,157 @@
+.cajas-ahorro-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.cajas-ahorro-btn-nuevo {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: none;
+    background: #ff6b1a;
+    color: #ffffff;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+    transition: background-color 0.2s;
+}
+
+.cajas-ahorro-btn-nuevo:hover:not(:disabled) {
+    background: #e85f14;
+}
+
+.cajas-ahorro-btn-nuevo:disabled {
+    background: #d1d5db;
+    cursor: not-allowed;
+}
+
+.cajas-ahorro-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
+}
+
+.cajas-ahorro-vacio {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+    padding: 56px 24px;
+    border: 1.5px dashed #e5e7eb;
+    border-radius: 16px;
+    color: #4b5563;
+}
+
+.cajas-ahorro-vacio-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background-color: #fff1e6;
+    color: #ff6b1a;
+    margin-bottom: 8px;
+}
+
+.cajas-ahorro-vacio p {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.cajas-ahorro-vacio-sub {
+    font-weight: 400 !important;
+    color: #6b7280 !important;
+    font-size: 13px !important;
+    max-width: 320px;
+    margin-bottom: 14px !important;
+}
+
+.cajas-ahorro-vacio .cajas-ahorro-btn-nuevo {
+    margin-top: 6px;
+}
+
+/* ===== Confirmacion de eliminar ===== */
+.cajas-ahorro-confirmar-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    background-color: rgba(0, 0, 0, 0.4);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.cajas-ahorro-confirmar {
+    width: 100%;
+    max-width: 380px;
+    background-color: #ffffff;
+    border-radius: 16px;
+    padding: 24px;
+    animation: cajasAhorroConfirmarIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes cajasAhorroConfirmarIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cajas-ahorro-confirmar h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+.cajas-ahorro-confirmar p {
+    margin: 0 0 20px;
+    font-size: 13.5px;
+    color: #6b7280;
+    line-height: 1.5;
+}
+
+.cajas-ahorro-confirmar-botones {
+    display: flex;
+    gap: 10px;
+}
+
+.cajas-ahorro-btn-eliminar {
+    flex: 1;
+    padding: 13px;
+    border: none;
+    border-radius: 10px;
+    background-color: #dc2626;
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.2s;
+}
+
+.cajas-ahorro-btn-eliminar:hover:not(:disabled) {
+    background-color: #b91c1c;
+}
+
+.cajas-ahorro-btn-eliminar:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}

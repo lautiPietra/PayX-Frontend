@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { logout } from '../services/authService';
 import { obtenerNotificaciones, marcarTodasLeidas } from '../services/notificacionService';
-import logoPayX from '../assets/payx-logo.png';
-import { IconHome, IconSettings, IconLogOut, IconBell } from './icons/Icons';
+import { IconHome, IconSettings, IconLogOut, IconBell, IconFileText, IconPiggyBank, IconCreditCard, IconUser, IconTarget, IconBarChart, IconZap } from './icons/Icons';
 import './Navbar.css';
 
 // Titulo corto a mostrar segun el codigo de plantilla de la notificacion.
@@ -97,17 +96,28 @@ function Navbar() {
         links.push({ path: '/admin', label: 'Admin', Icon: IconSettings });
     }
 
+    // Solo para el menu de 3 puntitos (mobile): accesos rapidos que en desktop
+    // ya se llega a traves del avatar (perfil) o de las acciones dentro de Inicio.
+    const enlacesMenuMobile = [
+        { path: '/movimientos', label: 'Movimientos', Icon: IconFileText },
+        { path: '/plazos-fijos', label: 'Plazos fijos', Icon: IconPiggyBank },
+        { path: '/cajas-ahorro', label: 'Cajas de ahorro', Icon: IconTarget },
+        { path: '/tarjeta', label: 'Tarjeta virtual', Icon: IconCreditCard },
+        { path: '/servicios', label: 'Pagar servicios', Icon: IconZap },
+        { path: '/estadisticas', label: 'Estadísticas', Icon: IconBarChart },
+        { path: '/perfil', label: 'Mi perfil', Icon: IconUser },
+    ];
+
     return (
         <>
             <nav className="navbar">
                 <div className="navbar-contenedor">
 
-                    {/* Logo */}
+                    {/* Logo: texto plano (sin caja/imagen de fondo), "Pay" en negro y "X" en naranja */}
                     <Link to="/inicio" className="navbar-logo" onClick={cerrarMenu}>
-                        <div className="navbar-logo-box">
-                            <img src={logoPayX} alt="PayX" />
-                        </div>
-                        <span className="navbar-marca">PayX</span>
+                        <span className="navbar-logo-texto">
+                            <span className="navbar-logo-pay">Pay</span><span className="navbar-logo-x">X</span>
+                        </span>
                     </Link>
 
                     {/* Links centrales (desktop) */}
@@ -124,48 +134,51 @@ function Navbar() {
                         ))}
                     </div>
 
-                    {/* Acciones de usuario (desktop) */}
-                    <div className="navbar-acciones">
-                        <div className="navbar-notificaciones" ref={notificacionesRef}>
-                            <button
-                                className="navbar-notificaciones-boton"
-                                onClick={() => setNotificacionesAbiertas((abierto) => !abierto)}
-                                title="Notificaciones"
-                                aria-label="Notificaciones"
-                            >
-                                <IconBell size={19} />
-                                {noLeidas > 0 && <span className="navbar-notificaciones-badge">{noLeidas}</span>}
-                            </button>
+                    {/* Notificaciones: siempre visibles (desktop y mobile), no solo dentro
+                        del menu de 3 puntos - por eso van fuera de .navbar-acciones-usuario,
+                        que si se oculta en mobile. */}
+                    <div className="navbar-notificaciones" ref={notificacionesRef}>
+                        <button
+                            className="navbar-notificaciones-boton"
+                            onClick={() => setNotificacionesAbiertas((abierto) => !abierto)}
+                            title="Notificaciones"
+                            aria-label="Notificaciones"
+                        >
+                            <IconBell size={19} />
+                            {noLeidas > 0 && <span className="navbar-notificaciones-badge">{noLeidas}</span>}
+                        </button>
 
-                            {notificacionesAbiertas && (
-                                <div className="navbar-notificaciones-panel">
-                                    <div className="navbar-notificaciones-header">
-                                        <h3>Notificaciones</h3>
-                                        {noLeidas > 0 && (
-                                            <button className="navbar-notificaciones-marcar" onClick={marcarTodasComoLeidas}>
-                                                Marcar todas como leídas
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div className="navbar-notificaciones-lista">
-                                        {notificaciones.length === 0 && (
-                                            <p className="navbar-notificaciones-vacio">No tenés notificaciones nuevas</p>
-                                        )}
-                                        {notificaciones.map((n) => (
-                                            <div key={n.id} className="navbar-notificacion-item no-leida">
-                                                <span className="navbar-notificacion-punto" />
-                                                <div className="navbar-notificacion-texto">
-                                                    <p className="navbar-notificacion-titulo">{TITULOS_PLANTILLA[n.plantillaCodigo] || 'Notificación'}</p>
-                                                    <p className="navbar-notificacion-detalle">{n.mensaje}</p>
-                                                    <span className="navbar-notificacion-hora">{formatearHora(n.fecha)}</span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
+                        {notificacionesAbiertas && (
+                            <div className="navbar-notificaciones-panel">
+                                <div className="navbar-notificaciones-header">
+                                    <h3>Notificaciones</h3>
+                                    {noLeidas > 0 && (
+                                        <button className="navbar-notificaciones-marcar" onClick={marcarTodasComoLeidas}>
+                                            Marcar todas como leídas
+                                        </button>
+                                    )}
                                 </div>
-                            )}
-                        </div>
+                                <div className="navbar-notificaciones-lista">
+                                    {notificaciones.length === 0 && (
+                                        <p className="navbar-notificaciones-vacio">No tenés notificaciones nuevas</p>
+                                    )}
+                                    {notificaciones.map((n) => (
+                                        <div key={n.id} className="navbar-notificacion-item no-leida">
+                                            <span className="navbar-notificacion-punto" />
+                                            <div className="navbar-notificacion-texto">
+                                                <p className="navbar-notificacion-titulo">{TITULOS_PLANTILLA[n.plantillaCodigo] || 'Notificación'}</p>
+                                                <p className="navbar-notificacion-detalle">{n.mensaje}</p>
+                                                <span className="navbar-notificacion-hora">{formatearHora(n.fecha)}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
+                    {/* Acciones de usuario (solo desktop): avatar + cerrar sesion */}
+                    <div className="navbar-acciones-usuario">
                         <Link to="/perfil" className="navbar-usuario" title="Ir a mi perfil">
                             <div className="navbar-avatar">
                                 {usuario.fotoPerfilUrl
@@ -209,34 +222,8 @@ function Navbar() {
                         </div>
                     </Link>
 
-                    <div className="navbar-menu-notificaciones">
-                        <div className="navbar-notificaciones-header">
-                            <h3><IconBell size={16} /> Notificaciones</h3>
-                            {noLeidas > 0 && (
-                                <button className="navbar-notificaciones-marcar" onClick={marcarTodasComoLeidas}>
-                                    Marcar todas como leídas
-                                </button>
-                            )}
-                        </div>
-                        <div className="navbar-notificaciones-lista">
-                            {notificaciones.length === 0 && (
-                                <p className="navbar-notificaciones-vacio">No tenés notificaciones nuevas</p>
-                            )}
-                            {notificaciones.map((n) => (
-                                <div key={n.id} className="navbar-notificacion-item no-leida">
-                                    <span className="navbar-notificacion-punto" />
-                                    <div className="navbar-notificacion-texto">
-                                        <p className="navbar-notificacion-titulo">{TITULOS_PLANTILLA[n.plantillaCodigo] || 'Notificación'}</p>
-                                        <p className="navbar-notificacion-detalle">{n.mensaje}</p>
-                                        <span className="navbar-notificacion-hora">{formatearHora(n.fecha)}</span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
                     <div className="navbar-menu-links">
-                        {links.map((link) => (
+                        {[...links, ...enlacesMenuMobile].map((link) => (
                             <Link
                                 key={link.path}
                                 to={link.path}

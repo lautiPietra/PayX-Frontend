@@ -10,6 +10,10 @@ import NuevaPassword from './pages/NuevaPassword';
 import Perfil from './pages/Perfil';
 import Movimientos from './pages/Movimientos';
 import PlazosFijos from './pages/PlazosFijos';
+import Tarjeta from './pages/Tarjeta';
+import CajasAhorro from './pages/CajasAhorro';
+import Estadisticas from './pages/Estadisticas';
+import Servicios from './pages/Servicios';
 import AdminPanel from './pages/AdminPanel';
 import { estaLogueado, esAdmin } from './services/authService';
 import AltaPlantilla from "./pages/AltaPlantilla";
@@ -42,6 +46,10 @@ function App() {
             <Route path="/perfil" element={<RutaPrivada><Perfil /></RutaPrivada>} />
             <Route path="/movimientos" element={<RutaPrivada><Movimientos /></RutaPrivada>} />
             <Route path="/plazos-fijos" element={<RutaPrivada><PlazosFijos /></RutaPrivada>} />
+            <Route path="/tarjeta" element={<RutaPrivada><Tarjeta /></RutaPrivada>} />
+            <Route path="/cajas-ahorro" element={<RutaPrivada><CajasAhorro /></RutaPrivada>} />
+            <Route path="/estadisticas" element={<RutaPrivada><Estadisticas /></RutaPrivada>} />
+            <Route path="/servicios" element={<RutaPrivada><Servicios /></RutaPrivada>} />
             <Route path="/admin" element={<RutaAdmin><AdminPanel /></RutaAdmin>} />
             <Route path="/admin/plantillas/nueva" element={<RutaAdmin><AltaPlantilla /></RutaAdmin>} />
             <Route path="/admin/plantillas/:id/editar" element={<RutaAdmin><EditarPlantilla /></RutaAdmin>} />

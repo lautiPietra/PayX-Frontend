@@ -1,0 +1,147 @@
+.tarjeta-virtual {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    padding: 24px 26px 20px;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #1a1a1a 0%, #2a2a2a 55%, #3a2415 100%);
+    color: #ffffff;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
+    overflow: hidden;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    animation: tarjetaFadeUp 0.45s ease both;
+    /* La tarjeta no se selecciona arrastrando el mouse (quedaba trabada con el
+       resaltado azul): para copiar el número ya está el botón "Copiar número". */
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+}
+
+.tarjeta-virtual::after {
+    content: '';
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 107, 26, 0.35), transparent 70%);
+    pointer-events: none;
+}
+
+.tarjeta-virtual-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    z-index: 1;
+}
+
+.tarjeta-virtual-marca {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 17px;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+}
+
+.tarjeta-virtual-tipo {
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.tarjeta-virtual-numero {
+    margin: 30px 0 26px;
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    font-variant-numeric: tabular-nums;
+    position: relative;
+    z-index: 1;
+}
+
+.tarjeta-virtual-bottom {
+    display: flex;
+    gap: 24px;
+    position: relative;
+    z-index: 1;
+}
+
+.tarjeta-virtual-label {
+    display: block;
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 4px;
+}
+
+.tarjeta-virtual-valor {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.tarjeta-virtual-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    position: relative;
+    z-index: 1;
+}
+
+.tarjeta-virtual-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background-color: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 9px;
+    color: #ffffff;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.tarjeta-virtual-btn:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.tarjeta-virtual-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.tarjeta-virtual-error {
+    margin: 12px 0 0;
+    font-size: 12.5px;
+    color: #ffb4a2;
+    position: relative;
+    z-index: 1;
+}
+
+@keyframes tarjetaFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 480px) {
+    .tarjeta-virtual {
+        max-width: 100%;
+    }
+}

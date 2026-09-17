@@ -630,3 +630,210 @@ Pedido explícito: romper el módulo de compra/venta de cripto por todos los med
 **95/95 tests unitarios pasan, incluyendo `PayxBackendApplicationTests.contextLoads`** (las migraciones de la sesión anterior —`saldo_usdt`/`saldo_bnb`/`saldo_xrp` y el ancho de `transacciones.monto`— ya estaban corridas contra la base real).
 
 ---
+
+### Feature: tarjeta virtual (una por usuario, se crea sola)
+
+Pedido: que cada usuario tenga una tarjeta virtual, creada automáticamente la primera vez que se loguea, y también para los que ya estaban logueados de antes (no solo altas nuevas).
+
+**Requiere una migración** (tabla nueva, no se ejecutó — correrla a mano):
+```sql
+CREATE TABLE tarjetas (
+    id UUID PRIMARY KEY,
+    usuario_id UUID NOT NULL UNIQUE REFERENCES usuarios(id),
+    numero VARCHAR(16) NOT NULL UNIQUE,
+    titular VARCHAR(120) NOT NULL,
+    cvv VARCHAR(3) NOT NULL,
+    fecha_vencimiento DATE NOT NULL,
+    fecha_creacion TIMESTAMPTZ NOT NULL
+);
+```
+
+**Cómo se crea sola (mismo patrón que `Cuenta`, no una migración de datos aparte):**
+- [TarjetaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TarjetaService.java): `obtenerOCrearTarjeta(usuario)` — `findByUsuarioId(...).orElseGet(() -> crearTarjetaParaUsuario(usuario))`, igual que `CuentaService`. Se llama desde 3 lugares para cubrir todos los casos:
+  - [AuthService.java](../PayX-backend/src/main/java/com/payx/backend/service/AuthService.java) `login()` (email/password): cubre tanto el primer login de un usuario recién verificado como a cualquier usuario existente que ya venía logueándose antes de esta funcionalidad.
+  - `loginConGoogle()`, rama de usuario nuevo: `crearTarjetaParaUsuario(usuario)` sin chequeo, igual que ya hacía `cuentaService.crearCuentaParaUsuario(usuario)` ahí mismo (se sabe que es nuevo, no hace falta buscar si ya tiene).
+  - `loginConGoogle()`, rama de usuario existente: mismo `obtenerOCrearTarjeta`, para cubrir a los que ya se logueaban con Google antes de esta feature.
+  - [PerfilService.java](../PayX-backend/src/main/java/com/payx/backend/service/PerfilService.java) `obtenerPerfil()`: mismo mecanismo que ya usa para sanar una `Cuenta` faltante. Esto es lo que en la práctica termina cubriendo "a los que ya están logueados ahora mismo": el frontend pide `/api/perfil` apenas se carga Home, así que a alguien con sesión activa (sin necesidad de desloguearse) se le crea la tarjeta en su próxima carga de página, no recién en su próximo login.
+
+**Generación de los datos** (todo en `TarjetaService`, sin depender de ningún proveedor externo):
+- Número de 16 dígitos: prefijo propio `9004` (ficticio — no es de Visa/Mastercard ni ninguna red real, para no insinuar una afiliación que no existe) + dígitos aleatorios (`SecureRandom`) + un dígito verificador Luhn válido al final, igual que un número de tarjeta real. Se reintenta (hasta 10 veces) si por colisión (altamente improbable) ya existe ese número.
+- CVV: 3 dígitos aleatorios.
+- Titular: nombre completo del usuario en mayúsculas, tomado como foto al momento de crearla (no se actualiza sola si después cambia el nombre — igual que una tarjeta real no se reimprime sola).
+- Vencimiento: último día del mes, 5 años después de creada.
+
+**Qué se expone y por qué se separó en dos endpoints:**
+- [PerfilResponse.java](../PayX-backend/src/main/java/com/payx/backend/dto/PerfilResponse.java): solo agrega `tarjetaUltimosCuatro` y `tarjetaVencimiento` — lo que se ve en el frente de una tarjeta sin revelarla (número tapado + vencimiento), dato "seguro" para viajar en cada carga de perfil.
+- [TarjetaController.java](../PayX-backend/src/main/java/com/payx/backend/controller/TarjetaController.java) (`GET /api/tarjeta`, nuevo): número completo y CVV. Separado a propósito de `/api/perfil` para que ver el número completo sea una acción explícita del usuario (un click en "Ver número completo" en el frontend) y no un dato sensible que viaje en cada poll del perfil sin que se use. Rate limit propio de 15/min en [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java) (revelar el número no necesita pedirse seguido).
+
+**Frontend:**
+- [tarjetaService.js](src/services/tarjetaService.js) (nuevo): `obtenerTarjeta()` contra `/api/tarjeta`.
+- [TarjetaVirtual.jsx](src/components/TarjetaVirtual.jsx) / [TarjetaVirtual.css](src/components/TarjetaVirtual.css) (nuevos): la tarjeta visual, con el número tapado por defecto (usando los últimos 4 dígitos que ya vienen en el perfil) y un botón "Ver número completo" que recién ahí pide `/api/tarjeta`, muestra el CVV, y habilita "Copiar número" (`navigator.clipboard`).
+- [Tarjeta.jsx](src/pages/Tarjeta.jsx) / [Tarjeta.css](src/pages/Tarjeta.css) (nuevos): página completa (no modal, a pedido explícito — se probó primero como modal y se cambió), con el mismo header "Volver" que `PlazosFijos`/`Movimientos`, mostrando `<TarjetaVirtual>`.
+- [Home.jsx](src/pages/Home.jsx): "Tarjeta virtual" ya existía como botón en "Qué querés hacer" (antes caía en "Próximamente"); ahora navega a `/tarjeta`.
+- [App.jsx](src/App.jsx): nueva ruta privada `/tarjeta`.
+- [Icons.jsx](src/components/icons/Icons.jsx): se agregó `IconCopy` (ya existía `IconCreditCard`, se reutilizó).
+
+**Tests:** [TarjetaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/TarjetaServiceTest.java) (nuevo, 7 casos: número de 16 dígitos con Luhn válido, formato del CVV, titular en mayúsculas, cálculo del vencimiento sobre un reloj fijo, reintento ante colisión de número, y que `obtenerOCrearTarjeta` sea idempotente — no crea una segunda si ya existe). `PerfilServiceTest` actualizado para mockear `TarjetaService`. **101/102 tests pasan** (el único que falla es `contextLoads`, esperable hasta correr la migración de arriba).
+
+---
+
+### Fix: navbar en responsive (menu de 3 puntitos cortado, notificaciones, logo)
+
+Tres pedidos encadenados sobre [Navbar.jsx](src/components/Navbar.jsx) / [Navbar.css](src/components/Navbar.css):
+
+**1. El menu mobile se veia "cortado"/superpuesto.** La causa era que `.navbar` (sticky, arriba de todo) tenia `z-index: 100`, mayor al del drawer `.navbar-menu-mobile` (`z-index: 99`), y el drawer solo ocupaba 320px/85% del ancho — quedaba una franja del fondo oscurecido a los costados y la barra de arriba se notaba duplicada/superpuesta sobre el drawer. Fix inicial: drawer a `width: 100%` en el breakpoint mobile.
+
+**2. Ese fix no alcanzaba: se rompia igual entre 768px y ~1024px** (ej. 870×644) porque el layout de *desktop* (links + notificaciones + avatar + nombre + logout, todo en una fila) ya no entraba en ese ancho — el breakpoint de 768px activaba el hamburguesa demasiado tarde. Fix: breakpoint subido a **1024px**, con margen de sobra para que el hamburguesa aparezca antes de que el layout de desktop llegue a desbordar.
+
+**3. Las notificaciones estaban dentro del menu de 3 puntitos, y el pedido era sacarlas de ahi** y ponerlas siempre visibles en la barra, a la izquierda del boton de hamburguesa. El bloque de notificaciones (campana + panel) se movio de estar anidado dentro de `.navbar-acciones-usuario` (que se oculta entera en mobile) a ser un hermano directo en `.navbar-contenedor`, y se borro la copia duplicada que existia dentro del drawer mobile. Con eso, en mobile solo quedan visibles: logo, campana, hamburguesa — pero al ser el unico elemento entre los otros dos con `justify-content: space-between` en el contenedor, quedaba centrada en vez de pegada al hamburguesa. Fix: `margin-left: auto` en `.navbar-notificaciones` dentro del breakpoint mobile, que la empuja (a ella y a todo lo que sigue) contra el borde derecho.
+
+**Menu de 3 puntitos vacio → se agregaron accesos rapidos.** Antes solo tenia "Inicio" (y "Admin" si correspondia), quedaba muy vacio. Se agrego un array `enlacesMenuMobile` (solo para el drawer, no toca los links de desktop) con Movimientos, Plazos fijos, Tarjeta virtual y Mi perfil, reutilizando iconos ya existentes.
+
+**Logo: de imagen a texto.** El logo pasó de ser una imagen (`payx-logo.png` + texto "PayX" al lado) a texto plano sin ningún fondo/caja: `<span className="navbar-logo-texto">` con `"Pay"` en negro (`#1a1a1a`) y `"X"` en naranja (`#ff6b1a`) en negrita, sin depender de ningún archivo de imagen para el navbar (los otros usos de `payx-logo.png` — Login, Registro, etc. — no se tocaron).
+
+**Rate limit — fix de fondo necesario para features con `{id}` en la URL.** [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java) matcheaba la clave de limite contra la URL literal; un endpoint como `/api/cajas-ahorro/{id}/depositar` nunca hubiera coincidido con ningun UUID real en la URL, dejando ese limite "de adorno" sin frenar nada. Se agregó normalización: cualquier segmento con forma de UUID en el path se reemplaza por `{id}` antes de buscar el límite, así todas las cajas (o cualquier recurso futuro con UUID en la URL) cuentan contra el mismo contador.
+
+---
+
+### Feature: cajas de ahorro (multiples por usuario, con meta opcional)
+
+Pedido: una funcionalidad nueva que separe plata del saldo principal en "cajitas" con nombre propio, color e ícono elegibles, que se puedan crear varias, renombrar/editar, y con gráficos (anillo de progreso hacia la meta).
+
+**Requiere una migración** (tabla nueva + 3 plantillas de notificación — no se ejecutó, correr a mano):
+```sql
+CREATE TABLE cajas_ahorro (
+    id UUID PRIMARY KEY,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    nombre VARCHAR(40) NOT NULL,
+    color VARCHAR(20) NOT NULL,
+    icono VARCHAR(30) NOT NULL,
+    saldo NUMERIC(15,2) NOT NULL DEFAULT 0,
+    monto_objetivo NUMERIC(15,2),
+    fecha_creacion TIMESTAMPTZ NOT NULL
+);
+
+INSERT INTO plantillas_notificacion (codigo, nombre, mensaje_base, requiere_origen, requiere_destino, activa, fecha_creacion) VALUES
+('CAJA_AHORRO_DEPOSITO', 'Depósito en caja de ahorro', 'Depositaste {{monto}} en tu caja "{{caja}}" el {{fecha}}.', false, false, true, now()),
+('CAJA_AHORRO_RETIRO', 'Retiro de caja de ahorro', 'Retiraste {{monto}} de tu caja "{{caja}}" el {{fecha}}.', false, false, true, now()),
+('CAJA_AHORRO_META_ALCANZADA', 'Meta de ahorro alcanzada', '¡Llegaste a tu meta de {{monto}} en la caja "{{caja}}"! 🎉', false, false, true, now());
+```
+
+**Backend** (mismo patrón de lock pesimista que `PlazoFijoService`/`Cuenta`, no optimistic locking):
+- [CajaAhorro.java](../PayX-backend/src/main/java/com/payx/backend/model/CajaAhorro.java) / [CajaAhorroRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/CajaAhorroRepository.java): entidad + `findByIdConLock` (mismo motivo que en `CuentaRepository`: sin lock, un depósito y un retiro simultáneos sobre la misma caja podían perder una actualización de saldo).
+- [CajaAhorroService.java](../PayX-backend/src/main/java/com/payx/backend/service/CajaAhorroService.java): `crear`/`editar`/`depositar`/`retirar`/`eliminar`. Reglas: máximo 8 cajas por usuario; color e ícono validados contra una lista blanca fija (son valores que se guardan y se muestran tal cual, no cualquier string); `depositar`/`retirar` siempre toman el lock de `Cuenta` antes que el de `CajaAhorro` (mismo orden en los dos sentidos, para que un depósito y un retiro simultáneos no puedan deadlockearse esperándose entre sí); `eliminar` con saldo > 0 se lo devuelve primero a la cuenta principal — cerrar una caja no puede hacer "desaparecer" plata. Un depósito que hace cruzar el saldo por encima de la meta dispara además `CAJA_AHORRO_META_ALCANZADA` (solo la primera vez que la cruza, no en cada depósito posterior).
+- [CajaAhorroController.java](../PayX-backend/src/main/java/com/payx/backend/controller/CajaAhorroController.java): `GET/POST /api/cajas-ahorro`, `PUT/DELETE /api/cajas-ahorro/{id}`, `POST /api/cajas-ahorro/{id}/depositar|retirar`.
+- [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java): nuevo wrapper `notificarCajaAhorro` (variables `{{caja}}`, `{{monto}}`, `{{fecha}}`).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límites de 15/min para crear, depositar y retirar (ver fix de normalización de UUID arriba, sin el cual estas entradas no hubieran funcionado).
+- **Tests:** [CajaAhorroServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/CajaAhorroServiceTest.java) (nuevo, 16 casos: creación con/sin meta, listas blancas de color/ícono, límite de 8 cajas, edición, permisos (no se puede tocar la caja de otro usuario), depósito/retiro con validación de saldo en ambos lados, notificación de meta alcanzada solo al cruzarla, y que eliminar devuelva el saldo). **117/118 tests pasan** (el único que falla es `contextLoads`, esperable hasta correr la migración de arriba).
+
+**Frontend:**
+- [cajaAhorroService.js](src/services/cajaAhorroService.js) (nuevo): listar/crear/editar/depositar/retirar/eliminar contra `/api/cajas-ahorro`.
+- [cajaAhorroTemas.js](src/utils/cajaAhorroTemas.js) (nuevo): paleta de 8 colores + 12 íconos temáticos (ahorro, meta, emergencia, imprevistos, trabajo, estudio, salud, regalo, compras, casa, billetera, inversión) — deben coincidir exactamente con las listas blancas del backend.
+- [Icons.jsx](src/components/icons/Icons.jsx): 9 íconos nuevos (`IconTarget`, `IconShield`, `IconBriefcase`, `IconUmbrella`, `IconHeart`, `IconGift`, `IconShoppingBag`, `IconBookOpen`, `IconMoreVertical`).
+- [CajaAhorroCard.jsx](src/components/CajaAhorroCard.jsx) / [.css](src/components/CajaAhorroCard.css): la tarjeta de cada caja — ícono, nombre, saldo, y si tiene meta, un **anillo de progreso en SVG** (`stroke-dasharray`/`stroke-dashoffset`, sin librerías externas de gráficos) con el % cumplido y cuánto falta; si no tiene meta, "Sin meta definida". Menú de 3 puntos (editar/eliminar) y botones Agregar/Retirar.
+- [CajaAhorroModal.jsx](src/components/CajaAhorroModal.jsx) / [.css](src/components/CajaAhorroModal.css): crear/editar una caja (mismo componente para las dos acciones), con preview en vivo del color+ícono+nombre elegidos, selector de color (círculos) y de ícono (grilla), reutilizando los estilos de formulario de `TransferModal.css` para quedar consistente con el resto de la app.
+- [MontoCajaModal.jsx](src/components/MontoCajaModal.jsx) (nuevo): depositar/retirar, mismo componente parametrizado por `modo`, valida contra el saldo de la cuenta (al depositar) o el saldo de la caja (al retirar).
+- [CajasAhorro.jsx](src/pages/CajasAhorro.jsx) / [.css](src/pages/CajasAhorro.css) (nuevos): página completa (no modal, mismo criterio que `Tarjeta.jsx`), grilla de cajas, estado vacío, y confirmación antes de eliminar (avisando si se devuelve saldo a la cuenta).
+- [Home.jsx](src/pages/Home.jsx): nueva acción "Cajas de ahorro" en "Qué querés hacer" → navega a `/cajas-ahorro`. También se aprovechó para conectar el botón "Quiero invertir" de la card promocional (`home-card-promo`), que hasta ahora cerraba en "Próximamente" → ahora navega a `/plazos-fijos`.
+- [App.jsx](src/App.jsx): nueva ruta privada `/cajas-ahorro`.
+
+Nota: no se pudo probar en un navegador real dentro de este entorno (sin herramienta de automatización de navegador disponible) — se verificó con `npx vite build` (compila sin errores) y `npx eslint` sobre todos los archivos nuevos/modificados (sin warnings). Falta una prueba manual en el navegador antes de darlo por definitivamente probado.
+
+---
+
+### Feature: estadísticas de gastos (por categoría y día a día)
+
+Pedido: una pantalla con gráficos que muestre en qué se fue la plata. Se definió "gasto" como plata en pesos que salió de tu control — se la transferiste a alguien, o la convertiste/comprometiste en otra cosa (dólares, cripto, un plazo fijo). Mover plata a una caja de ahorro **no** cuenta como gasto: sigue siendo tuya, solo que separada.
+
+**No requiere ninguna tabla ni migración nueva**: en vez de mantener un historial propio, [EstadisticaService.java](../PayX-backend/src/main/java/com/payx/backend/service/EstadisticaService.java) reutiliza los `listarMis...` que ya expone cada feature (`TransferenciaService`, `PlazoFijoService`, `CambioDolaresService`, `CriptoService`) y agrega/filtra en memoria — no existe una tabla "movimientos" única en este backend (cada feature tiene la suya), y duplicar ese modelo con una tabla nueva solo para las estadísticas no se justificaba para el volumen de una billetera personal.
+
+**Backend:**
+- Reglas de "qué cuenta": transferencias con `direccion=ENVIADA`, `estado=COMPLETADA` y `moneda=PESOS` (ni recibidas, ni pendientes/canceladas, ni en otra moneda); operaciones de dólares/cripto con `tipo=COMPRA` (las ventas no son gasto, son ingreso); todos los plazos fijos constituidos.
+- `GET /api/estadisticas/gastos?dias=30` (`dias=0` = todo el tiempo): devuelve el total, un desglose por categoría (monto + porcentaje, ordenado de mayor a menor) y una serie día a día (un punto por cada día del período, en cero si no hubo gasto ese día — no se omiten días sin gasto, para que el gráfico de barras no quede con huecos). La serie día a día no se calcula si el período es "todo el tiempo" (no tendría sentido un punto por cada día desde que existe la cuenta).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límite de 30/min (es de solo lectura, pero hace 4 consultas en cascada por llamada).
+- **Tests:** [EstadisticaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/EstadisticaServiceTest.java) (nuevo, 13 casos: qué cuenta y qué no como gasto en cada una de las 4 fuentes, filtro por ventana de días, porcentajes (incluyendo sin dividir por cero cuando no hay ningún gasto), y la serie diaria (un punto por día, incluso en cero, y que dos gastos el mismo día se sumen en el mismo punto).
+
+**Frontend:**
+- [estadisticaService.js](src/services/estadisticaService.js) (nuevo): `obtenerEstadisticaGastos(dias)`.
+- [EstadisticaDonut.jsx](src/components/EstadisticaDonut.jsx) / [.css](src/components/EstadisticaDonut.css) (nuevos): gráfico de torta armado con círculos SVG apilados (`stroke-dasharray`/`stroke-dashoffset` con offset acumulado por segmento, sin librería de gráficos), con leyenda de montos y porcentajes al lado.
+- [EstadisticaBarras.jsx](src/components/EstadisticaBarras.jsx) / [.css](src/components/EstadisticaBarras.css) (nuevos): gráfico de barras del gasto día a día, escalado contra el máximo del propio período, con el monto exacto de cada día al pasar el mouse.
+- [Estadisticas.jsx](src/pages/Estadisticas.jsx) / [.css](src/pages/Estadisticas.css) (nuevos): página completa con selector de período (7/30/90 días o todo), total del período, y los dos gráficos.
+- [Home.jsx](src/pages/Home.jsx): nueva acción "Estadísticas" en "Qué querés hacer" → navega a `/estadisticas`. También se conectó el botón "Quiero invertir" de la card promocional (antes caía en "Próximamente") → ahora navega a `/plazos-fijos`.
+- [App.jsx](src/App.jsx): nueva ruta privada `/estadisticas`.
+
+**131/131 tests del backend pasan, incluido `contextLoads`** (las migraciones de `tarjetas` y `cajas_ahorro` de las features anteriores ya se corrieron contra la base real).
+
+---
+
+### Feature: pago de servicios (luz, gas, agua, internet, cable, telefonía)
+
+Pedido: una función de pago de servicios "realista" — no un simple formulario para cargar un monto a mano, sino que cada servicio tenga su propia factura esperando, con vencimiento y todo, igual que en una app de pagos real.
+
+No hay proveedores externos reales acá (no existe una API de "factura de Edesur" pública y gratuita como sí la hay para el dólar o cripto): el catálogo de 6 servicios es fijo (definido en código, no en la base) y cada factura se genera sola la primera vez que se consulta ese período — mismo patrón de "se crea sola" que ya se usó para la tarjeta virtual — con un monto pseudo-aleatorio dentro de un rango realista para ese servicio (ej. Luz: base $8.000 ± $3.000).
+
+**Requiere una migración** (tabla nueva + 1 plantilla de notificación — no se ejecutó, correr a mano):
+```sql
+CREATE TABLE facturas (
+    id UUID PRIMARY KEY,
+    usuario_id UUID NOT NULL REFERENCES usuarios(id),
+    servicio_codigo VARCHAR(20) NOT NULL,
+    periodo VARCHAR(7) NOT NULL,
+    monto NUMERIC(15,2) NOT NULL,
+    fecha_vencimiento DATE NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    fecha_creacion TIMESTAMPTZ NOT NULL,
+    fecha_pago TIMESTAMPTZ,
+    UNIQUE (usuario_id, servicio_codigo, periodo)
+);
+
+INSERT INTO plantillas_notificacion (codigo, nombre, mensaje_base, requiere_origen, requiere_destino, activa, fecha_creacion) VALUES
+('SERVICIO_PAGADO', 'Pago de servicio', 'Pagaste {{monto}} de {{servicio}} el {{fecha}}.', false, false, true, now());
+```
+
+**Backend** (mismo patrón de lock pesimista que el resto de las features de plata):
+- [Factura.java](../PayX-backend/src/main/java/com/payx/backend/model/Factura.java) / [FacturaRepository.java](../PayX-backend/src/main/java/com/payx/backend/repository/FacturaRepository.java): una factura por usuario+servicio+período (constraint `UNIQUE` de los tres), con `findByIdConLock` para que dos clicks de "pagar" simultáneos (doble click, o dos pestañas) sobre la misma factura no la cobren dos veces.
+- [FacturaService.java](../PayX-backend/src/main/java/com/payx/backend/service/FacturaService.java): catálogo fijo de 6 servicios (código, nombre, proveedor, categoría, monto base, variación). `listarServiciosConFacturaActual` siempre devuelve los 6, creando la factura del período actual (vence el día 15 del mes) para el que todavía no la tenía. `pagar` bloquea primero la cuenta y después la factura (mismo orden que `CajaAhorroService`, para que nunca pueda haber deadlock entre features distintas), valida que no esté ya pagada y que haya saldo suficiente, descuenta, y marca `PAGADA` con su `fechaPago`. Una factura vencida (fecha de vencimiento ya pasada) se puede seguir pagando igual, como una factura real atrasada — no hay recargo por mora, se juzgó innecesario para el alcance de esto.
+- [FacturaController.java](../PayX-backend/src/main/java/com/payx/backend/controller/FacturaController.java): `GET /api/facturas` (catálogo + factura actual), `GET /api/facturas/historial` (todas las facturas, todos los períodos), `POST /api/facturas/{id}/pagar`.
+- [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java): nuevo wrapper `notificarServicio` (variables `{{servicio}}`, `{{monto}}`, `{{fecha}}`).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límite de 15/min para pagar (mueve saldo real).
+- **Tests:** [FacturaServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/FacturaServiceTest.java) (nuevo, 11 casos: siempre devuelve los 6 servicios, se crea sola con el monto dentro del rango, no se crea una segunda si ya existía, el cálculo de "vencida" (una factura pagada nunca figura vencida aunque el vencimiento ya haya pasado), pago exitoso, no se puede pagar dos veces, no se puede pagar sin saldo, no se puede pagar la factura de otro usuario, factura inexistente, e historial con el nombre del servicio ya resuelto).
+
+**Frontend:**
+- [facturaService.js](src/services/facturaService.js) (nuevo): listar/historial/pagar contra `/api/facturas`.
+- [serviciosTemas.js](src/utils/serviciosTemas.js) (nuevo): ícono y color por código de servicio (mismo criterio que `cajaAhorroTemas.js`).
+- [Icons.jsx](src/components/icons/Icons.jsx): 5 íconos nuevos (`IconZap`, `IconFlame`, `IconDroplet`, `IconWifi`, `IconTv`; telefonía reutiliza el `IconPhone` ya existente).
+- [ServicioCard.jsx](src/components/ServicioCard.jsx) / [.css](src/components/ServicioCard.css): la tarjeta de cada servicio — ícono, proveedor, monto, vencimiento (en rojo si ya venció), botón "Pagar" (deshabilitado y en verde si ya está paga).
+- [FacturaPagoModal.jsx](src/components/FacturaPagoModal.jsx) (nuevo): confirmación antes de pagar (sin nada que escribir, el monto ya es fijo), reutilizando los estilos de `TransferModal.css` para quedar consistente; deshabilita el botón de confirmar si no hay saldo suficiente.
+- [Servicios.jsx](src/pages/Servicios.jsx) / [.css](src/pages/Servicios.css) (nuevos): página completa con dos pestañas, "Mis servicios" (las 6 tarjetas) e "Historial de pagos" (todas las facturas, pendientes y pagadas, de todos los períodos).
+- [Home.jsx](src/pages/Home.jsx): nueva acción "Pagar servicios" en "Qué querés hacer" → navega a `/servicios`.
+- [App.jsx](src/App.jsx): nueva ruta privada `/servicios`.
+
+**141/142 tests del backend pasan** (el único que falla es `contextLoads`, esperable hasta correr la migración de arriba — recién ahí quedarían **142/142**).
+
+Nota: no se pudo probar en un navegador real dentro de este entorno — se verificó con `npx vite build` y `npx eslint` (sin errores) y con la suite de tests del backend. Falta la prueba manual en el navegador.
+
+---
+
+### Auditoría de las 3 features del día: cajas de ahorro, estadísticas, pago de servicios
+
+Pedido explícito: buscar todo lo que pudiera romperse en lo implementado ese día y arreglarlo. Se encontraron y arreglaron 6 problemas reales.
+
+**1. Condición de carrera real en `FacturaService` — la más seria.** `listarServiciosConFacturaActual` crea, en loop, la factura del período actual de cada uno de los 6 servicios si todavía no existía, sin ningún lock. Ese endpoint (`GET /api/facturas`) se pide en cada carga de la página de Servicios, y en desarrollo **React StrictMode duplica el efecto que lo dispara** — es decir, dos pedidos casi simultáneos son el caso normal, no uno raro. Si los dos "no encuentran" la factura de un servicio y los dos intentan crearla, la constraint `UNIQUE (usuario_id, servicio_codigo, periodo)` frena el duplicado en la base, pero sin manejarlo esa excepción se hubiera visto como un error 500 en vez de simplemente devolver la que el otro pedido ya creó. **Fix:** [FacturaService.crearFactura](../PayX-backend/src/main/java/com/payx/backend/service/FacturaService.java) ahora hace `save()` + `flush()` (fuerza el INSERT en el momento, en vez de dejarlo pendiente hasta el commit) dentro de un try/catch: si choca contra la constraint, recupera la fila que el otro pedido ya insertó en vez de fallar. Mismo problema y mismo fix aplicado a [TarjetaService.crearTarjetaParaUsuario](../PayX-backend/src/main/java/com/payx/backend/service/TarjetaService.java) (se llama desde `obtenerPerfil()`, pedido en casi cada pantalla — mismo riesgo, ahora con la misma protección). Confirmado con tests que simulan el choque (`DataIntegrityViolationException` en el flush) y verifican que se recupera la fila ganadora en vez de propagar el error.
+
+**2. Serie diaria rota con una ventana de días muy larga.** [EstadisticaService](../PayX-backend/src/main/java/com/payx/backend/service/EstadisticaService.java) arma un punto por cada día del período pedido, pero tenía un tope interno de 365 puntos sin coordinarlo con el cálculo de fechas: pedir `dias=400` armaba una serie que arrancaba 400 días atrás pero se cortaba a los 365 puntos — **faltando justo los días más recientes** (los más importantes) en vez de los más viejos. El frontend nunca pide más de 90 días, pero la API es la API. **Fix:** si `dias` supera el máximo de la serie, se sigue calculando bien el total y las categorías, pero la serie diaria queda vacía (igual que "todo el tiempo") en vez de devolver una engañosa.
+
+**3. El gráfico de torta podía dejar un hueco o una superposición en la unión de los segmentos.** [EstadisticaDonut.jsx](src/components/EstadisticaDonut.jsx) calculaba el largo de cada segmento a partir del **porcentaje ya redondeado** que manda el backend; si los 4 porcentajes independientes sumaban 99.9% o 100.1% por redondeo, quedaba un hueco o superposición mínima pero visible donde el último segmento se junta con el primero. **Fix:** el largo de cada segmento ahora se calcula con `monto/total` (la proporción real, sin redondear) — solo el texto de la leyenda muestra el porcentaje redondeado.
+
+**4. Eliminar una caja de ahorro fallaba en silencio.** Si `eliminarCajaAhorro` fallaba (red, o el backend rechazándolo por algún motivo), el `catch` de [CajasAhorro.jsx](src/pages/CajasAhorro.jsx) no hacía nada: el modal de confirmación se quedaba ahí con el botón reactivado y **sin ningún mensaje**, dejando al usuario sin saber si funcionó o no. **Fix:** se agregó estado de error visible en el diálogo de confirmación, igual que en el resto de los formularios de la app.
+
+**5. Una factura vieja e impaga quedaba imposible de pagar desde la interfaz.** El backend nunca restringió `pagar()` a la factura del período actual (cualquier factura pendiente se puede pagar), pero el frontend solo mostraba el botón "Pagar" en la pestaña "Mis servicios" (que solo lista la del mes en curso) — si un usuario se salteaba un mes, esa factura vieja quedaba visible en "Historial" pero sin ninguna forma de pagarla. **Fix:** se agregó un botón "Pagar" a los ítems pendientes del historial en [Servicios.jsx](src/pages/Servicios.jsx), reutilizando el mismo modal de confirmación.
+
+**6. Datos de un período viejo podían pisar a los del período recién elegido.** Tanto el selector de período de [Estadisticas.jsx](src/pages/Estadisticas.jsx) (7/30/90 días/todo) como el cambio de pestaña de `Servicios.jsx` (historial) no protegían contra respuestas de red que llegan desordenadas: clickear rápido entre dos períodos podía hacer que la respuesta más lenta (de un período viejo) pisara a la más rápida (del período recién elegido), mostrando datos que no correspondían al selector visible. **Fix:** se agregó la guarda estándar de React (una bandera `cancelado` seteada en la función de limpieza del `useEffect`) para ignorar respuestas de pedidos que ya no importan.
+
+**Se revisó y se descartó como no-problema:** el orden de los locks pesimistas en `CajaAhorroService`/`FacturaService` (siempre cuenta antes que el recurso, en cualquier dirección — no puede haber deadlock); que el nuevo regex de normalización de UUIDs en `RateLimitFilter` afectara accidentalmente otras rutas con `{id}` en la URL (ninguna otra comparte el mismo prefijo+sufijo, confirmado con tests nuevos); y varios casos de validación (montos negativos/cero, nombres vacíos) que ya estaban correctamente cubiertos por las anotaciones de Bean Validation existentes.
+
+**Tests nuevos:** 2 en `FacturaServiceTest` (la carrera de creación, y ya eran 11 → 12), 1 en `TarjetaServiceTest` (8), 1 en `EstadisticaServiceTest` (14), 3 en `RateLimitFilterTest` (13). **148/148 tests del backend pasan.** Frontend: `npx vite build` y `npx eslint` sin errores nuevos (persisten 2 warnings pre-existentes de antes de esta sesión, en `Home.jsx` y `AdminPanel.jsx`, no relacionados con estas features).
+
+Limitación reconocida: el fix de la condición de carrera se probó a nivel unitario (simulando la excepción del `flush`), no contra una base Postgres real con dos pedidos genuinamente concurrentes — el comportamiento exacto de Hibernate ante un `flush` fallido dentro de una transacción con más operaciones pendientes después (el loop de las otras 5 facturas) no se pudo verificar en este entorno. Es una mejora real sobre no tener ninguna protección, pero no se puede afirmar con 100% de certeza que cubre absolutamente todos los timings posibles.
+
+---

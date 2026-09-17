@@ -304,6 +304,13 @@
     margin-bottom: 36px;
 }
 
+/* Inversiones tiene 7 acciones: con el auto-fill de arriba caían 6 por fila y
+   la septima quedaba sola, colgada, en una fila propia. Con 4 columnas fijas
+   quedan 4 + 3 (una fila mas corta, no un item suelto). */
+.home-acciones-grid-inversiones {
+    grid-template-columns: repeat(4, 1fr);
+}
+
 .home-accion {
     display: flex;
     flex-direction: column;
@@ -599,5 +606,12 @@
 
     .home-acciones-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    /* A 2 columnas, con un numero impar de acciones el ultimo item queda
+       igual de solo en su propia fila: si es el caso, que ocupe todo el
+       ancho en vez de quedar a la mitad. */
+    .home-acciones-grid-inversiones .home-accion:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
     }
 }

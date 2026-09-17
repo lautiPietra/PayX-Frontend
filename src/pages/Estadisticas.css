@@ -1,0 +1,88 @@
+.estadisticas-periodos {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.estadisticas-periodo-btn {
+    padding: 8px 16px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 20px;
+    background-color: #ffffff;
+    color: #4b5563;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s;
+}
+
+.estadisticas-periodo-btn:hover {
+    background-color: #f9fafb;
+}
+
+.estadisticas-periodo-btn.activo {
+    background-color: #1a1a1a;
+    border-color: #1a1a1a;
+    color: #ffffff;
+}
+
+.estadisticas-total-card {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 22px 24px;
+    background: linear-gradient(160deg, #1a1a1a, #2d2d2d);
+    border-radius: 16px;
+    margin-bottom: 24px;
+}
+
+.estadisticas-total-icono {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background-color: rgba(255, 107, 26, 0.18);
+    color: #ff8b4d;
+    flex-shrink: 0;
+}
+
+.estadisticas-total-label {
+    margin: 0 0 4px;
+    font-size: 12.5px;
+    color: #9ca3af;
+}
+
+.estadisticas-total-valor {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    color: #ffffff;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+}
+
+.estadisticas-seccion {
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 20px;
+}
+
+.estadisticas-seccion-titulo {
+    margin: 0 0 18px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+@media (max-width: 520px) {
+    .estadisticas-total-valor {
+        font-size: 21px;
+    }
+}
