@@ -14,8 +14,10 @@ function formatearMonto(valor) {
 // venta, los simbolos de cada lado de la operacion, el saldo disponible (en la
 // moneda que se entrega) y los textos. La cotizacion ya NO se recibe por config:
 // se pide al backend (cotizacion oficial real, cacheada ahi) al abrir el modal y
-// se refresca cada 15s mientras este abierto, para no operar con un precio viejo
-// si el usuario lo deja abierto un rato largo.
+// se refresca cada 3s mientras este abierto -para que el ticker se sienta en vivo
+// y no se opere con un precio viejo si el usuario lo deja abierto un rato largo-,
+// bien por debajo del limite de 30/min del endpoint (el resto del trafico normal,
+// como el polling de Home, deja margen de sobra).
 function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'exito'
     const [cotizacion, setCotizacion] = useState(null);
@@ -41,7 +43,7 @@ function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
         if (!abierto) return;
         const intervalo = setInterval(() => {
             obtenerCotizacionDolar().then(setCotizacion).catch(() => {});
-        }, 15000);
+        }, 3000);
         return () => clearInterval(intervalo);
     }, [abierto]);
 

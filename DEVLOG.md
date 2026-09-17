@@ -513,3 +513,120 @@ Se creó [RateLimitFilterTest.java](../PayX-backend/src/test/java/com/payx/backe
 **64/64 tests pasan** en todo el backend (antes 50) — no quedó ningún hallazgo de esta auditoría sin arreglar ni sin test.
 
 ---
+
+### Feature: compra y venta real de BTC/ETH/SOL con precio de mercado en vivo
+
+Mismo patrón que el dólar (que ya venía siendo 100% mock: precios, tenencias y operaciones hardcodeados en `CriptoModal.jsx`), pero con una diferencia de diseño explícita pedida por el usuario: **un único precio por cripto, sin spread compra/venta** — el mismo precio que se muestra en vivo es el que se usa para operar (a diferencia del dólar oficial, que sí tiene precio de compra y de venta distintos).
+
+**Precio en pesos directo desde CoinGecko:** se probó `api.coingecko.com/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=ars` a mano antes de integrarlo — gratis, sin api key, y devuelve el precio ya en pesos argentinos (no hace falta combinarlo con la cotización del dólar como se podría haber necesitado con una API que solo cotice en USD).
+
+**Sin ninguna tabla ni columna nueva:** `Cuenta` ya tenía `saldo_btc`/`saldo_eth`/`saldo_solana` (`NUMERIC(18,8)`, inicializados en cero al crear la cuenta) sin usar todavía, y `operaciones_cambio` — la misma tabla genérica que ya se usaba para dólares — sirve tal cual para cripto: `moneda_origen`/`moneda_destino` puede ser `PESOS`/`BTC`, `PESOS`/`ETH` o `PESOS`/`SOL` igual que antes era `PESOS`/`USD`.
+
+**BUG evitado antes de que existiera:** al compartir la tabla `operaciones_cambio` entre dólares y cripto, listar "mis cambios de dólares" con la query vieja (`findByUsuarioIdOrderByFechaDesc`, sin filtrar moneda) también hubiera traído las operaciones de cripto del usuario, mal mapeadas contra el DTO de dólares. Se cambió el repositorio a `findByUsuarioIdAndMoneda`/`findByUsuarioIdAndMonedaIn` (filtran por qué moneda participa en la fila) *antes* de escribir `CriptoService`, no después de encontrarlo roto.
+
+**Backend:**
+- [PrecioCripto.java](../PayX-backend/src/main/java/com/payx/backend/client/PrecioCripto.java) / [CriptoPriceClient.java](../PayX-backend/src/main/java/com/payx/backend/client/CriptoPriceClient.java) / [CriptoPriceClientImpl.java](../PayX-backend/src/main/java/com/payx/backend/client/CriptoPriceClientImpl.java): cliente de CoinGecko, mismo patrón que `DolarApiClient` (un `RestClient.create()` propio, separado en interfaz para poder testear el cache sin simular la cadena fluida de `RestClient`). Pide las 3 cotizaciones en una sola llamada.
+- [CotizacionCriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CotizacionCriptoService.java): mismo cache de 60s y mismo fallback a la última cotización buena conocida que `CotizacionService`, aplicado a la lista de 3 precios. Incorpora desde el arranque la validación de la auditoría anterior: un precio en cero o negativo del proveedor se descarta igual que una falla de red.
+- [CriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CriptoService.java): mismo bloqueo de cuenta (`findByIdConLock`) y misma guarda de "monto que redondea a cero" que `CambioDolaresService` (aplicada desde el arranque, no como parche posterior). La cripto vendida/comprada redondea a 8 decimales (coincide con la precisión de `saldo_btc`/`saldo_eth`/`saldo_solana` y de `operaciones_cambio`), los pesos a 2. Al vender, valida el saldo de la cripto específica pedida (no se puede vender SOL usando saldo de BTC).
+- [CriptoController.java](../PayX-backend/src/main/java/com/payx/backend/controller/CriptoController.java) (`POST`/`GET /api/cripto`) y endpoint nuevo en [CotizacionController.java](../PayX-backend/src/main/java/com/payx/backend/controller/CotizacionController.java) (`GET /api/cotizacion/cripto`).
+- [PerfilResponse.java](../PayX-backend/src/main/java/com/payx/backend/dto/PerfilResponse.java): ahora expone `saldoBtc`/`saldoEth`/`saldoSolana` (existían en la tabla pero no se mandaban al frontend).
+- [NotificacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/NotificacionService.java): nuevo `notificarCripto`. Hacen falta 2 plantillas nuevas en el panel de admin: `CRIPTO_COMPRADA` y `CRIPTO_VENDIDA` (variables: `{{simbolo}}`, `{{montoCripto}}`, `{{monto}}` en pesos, `{{cotizacion}}`, `{{fecha}}`).
+- [RateLimitFilter.java](../PayX-backend/src/main/java/com/payx/backend/security/RateLimitFilter.java): límites para `POST /api/cripto` (15/min) y `GET /api/cotizacion/cripto` (30/min).
+
+**Frontend:**
+- [cotizacionCriptoService.js](src/services/cotizacionCriptoService.js) y [criptoService.js](src/services/criptoService.js) (nuevos).
+- [CriptoTicker.jsx](src/components/CriptoTicker.jsx) / [CriptoTicker.css](src/components/CriptoTicker.css) (nuevos): a diferencia de [CotizacionTicker.jsx](src/components/CotizacionTicker.jsx) (dólar, 2 columnas fijas compra/venta), este recibe una lista de N cotizaciones y muestra un único precio por fila, con flash y flechita (verde arriba / roja invertida) si cambió desde la última actualización — sin distinción de color fijo por compra/venta, porque no la hay.
+- [CriptoModal.jsx](src/components/CriptoModal.jsx): dejó de usar el array `CRIPTOS` hardcodeado. Pide las 3 cotizaciones al backend al abrirse y las refresca cada 15s mientras está abierto (mismo patrón que el modal de dólares), muestra el ticker arriba del título, y usa el saldo real de la cripto elegida (`perfil.saldoBtc`/`saldoEth`/`saldoSolana`) en vez de una tenencia inventada.
+- [Home.jsx](src/pages/Home.jsx): el balance de "Cripto" en la tarjeta de saldo ahora es real — se calcula sumando `saldoBtc*precioBTC + saldoEth*precioETH + saldoSolana*precioSOL` con los precios en vivo. Se sacó el "Rindió $X en los últimos 12 meses" que antes era inventado: no hay precio promedio de compra guardado para calcular una ganancia/pérdida real, y mostrar un número falso al lado de un saldo ahora real hubiera sido peor que no mostrar nada.
+- [ActividadItem.jsx](src/components/ActividadItem.jsx): nueva variante `cambioCripto` (ícono de monedas, verde +cripto en compra, rojo -cripto en venta).
+- [utils/actividad.js](src/utils/actividad.js): `construirActividades` acepta un cuarto argumento opcional con las operaciones de cripto.
+- [Movimientos.jsx](src/pages/Movimientos.jsx): también trae y muestra las operaciones de cripto.
+- [Navbar.jsx](src/components/Navbar.jsx): títulos para `CRIPTO_COMPRADA`/`CRIPTO_VENDIDA`.
+
+**Tests:** [CotizacionCriptoServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/CotizacionCriptoServiceTest.java) (9 casos, mismo esquema que `CotizacionServiceTest`) y [CriptoServiceTest.java](../PayX-backend/src/test/java/com/payx/backend/service/CriptoServiceTest.java) (7 casos: redondeo a 8/2 decimales, saldo insuficiente por cripto específica, monto que redondea a cero, cotización no disponible, notificación fallida no revierte la operación, listado filtrado). **80/80 tests pasan** en todo el backend (antes 64), incluyendo `PayxBackendApplicationTests.contextLoads` — no hizo falta ninguna migración.
+
+---
+
+### Fix: la animación del saldo se reiniciaba a $0 en vez de deslizarse
+
+Bug reportado por el usuario después de probar la compra de BTC: el número grande de saldo, en la pestaña "Cripto", se veía "atascado" en un valor mucho menor al esperado, subiendo de a poquito con cada actualización en vez de mostrar el valor real.
+
+**Causa:** el `useEffect` que animaba el conteo del saldo (`Home.jsx`) usaba `desde = 0` fijo cada vez que se disparaba, y estaba atado a `[monedaActiva, monedaData.saldo]` — como el precio de la cripto se actualiza solo, `monedaData.saldo` cambia constantemente, así que la animación se reiniciaba desde cero una y otra vez, sin nunca llegar a terminar su recorrido hacia el valor real.
+
+**Fix:** [useValorAnimado.js](src/hooks/useValorAnimado.js) (hook nuevo, reutilizable): desliza un número desde su **último valor mostrado** (no desde cero) hacia el nuevo objetivo cada vez que este cambia, y devuelve la dirección del último cambio (`'sube'`/`'baja'`/`null`) para poder pintarlo. Se usa en `Home.jsx` (reemplaza el `useEffect` de conteo original) y también en los tickers de precio (ver más abajo), unificando la misma animación en toda la app.
+
+**Además, pedido explícito:** que el precio se sienta en vivo (actualizándose seguido, con el número deslizándose y poniéndose verde/rojo según suba o baje) y un botón para ver el saldo de cada cripto por separado en vez de un total mezclado.
+
+- [CotizacionTicker.jsx](src/components/CotizacionTicker.jsx) y [CriptoTicker.jsx](src/components/CriptoTicker.jsx): reescritos sobre `useValorAnimado`. El precio ya no salta de golpe a cada actualización: se desliza suavemente cuadro a cuadro (mucho más seguido que una vez por segundo) hacia el valor real, coloreándose mientras se mueve.
+- [CambioDolaresModal.jsx](src/components/CambioDolaresModal.jsx) y [CriptoModal.jsx](src/components/CriptoModal.jsx): el refresco de cotización mientras el modal está abierto pasó de 15s a **3s**, para que haya un valor real nuevo seguido y la animación tenga con qué trabajar. Verificado que esto no rompe el rate limit (30/min por endpoint): sumado al polling de fondo del Home (20s), el peor caso da ~23 req/min, por debajo del límite — no hizo falta tocar `RateLimitFilter`.
+  - Aclaración honesta que se le hizo al usuario: no existe un feed de precio realmente "segundo a segundo" gratis para esto (CoinGecko no lo ofrece sin pagar, y tampoco convendría pedirlo así de seguido); lo que se ve es una animación suave entre valores reales que sí llegan cada pocos segundos, no datos inventados.
+- [Home.jsx](src/pages/Home.jsx) / [Home.css](src/pages/Home.css): la pestaña "Cripto" ahora tiene sub-botones BTC/ETH/SOL (`.home-tabs-cripto`) para elegir qué moneda ver. El número grande muestra el saldo **nativo** de esa cripto (ej. "0.00000869 BTC"), con el equivalente en pesos como texto secundario (`≈ $ 999.87`) — en vez de un único total en pesos que mezclaba las tres y no se podía verificar. Esto también sirve como herramienta de diagnóstico: si el número de una cripto puntual se ve mal, ahora se puede aislar cuál.
+
+---
+
+### Se agregaron 3 criptomonedas más: USDT, BNB y XRP (ahora son 6 en total)
+
+Pedido: pasar de 3 a "5 o 6" criptomonedas soportadas. Se sumaron USDT (Tether), BNB y XRP (Ripple) a las 3 que ya había (BTC/ETH/SOL) — todas ya cubiertas por CoinGecko con cotización directa en pesos.
+
+**Requiere una migración** (no se ejecutó, hay que correrla a mano — ver instrucciones que se le dieron al usuario): 3 columnas nuevas en `cuentas`, mismo tipo que las criptos existentes:
+```sql
+ALTER TABLE cuentas ADD COLUMN saldo_usdt NUMERIC(18,8) NOT NULL DEFAULT 0;
+ALTER TABLE cuentas ADD COLUMN saldo_bnb  NUMERIC(18,8) NOT NULL DEFAULT 0;
+ALTER TABLE cuentas ADD COLUMN saldo_xrp  NUMERIC(18,8) NOT NULL DEFAULT 0;
+```
+
+- [Cuenta.java](../PayX-backend/src/main/java/com/payx/backend/model/Cuenta.java): nuevos campos `saldoUsdt`/`saldoBnb`/`saldoXrp`. [CuentaService.java](../PayX-backend/src/main/java/com/payx/backend/service/CuentaService.java) los inicializa en cero para cuentas nuevas, igual que los demás.
+- [CriptoPriceClientImpl.java](../PayX-backend/src/main/java/com/payx/backend/client/CriptoPriceClientImpl.java): se sumaron `tether`/`binancecoin`/`ripple` a la lista de ids de CoinGecko pedidos en la misma llamada (sigue siendo una sola consulta HTTP para todas).
+- [CriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CriptoService.java) y [CrearOperacionCriptoRequest.java](../PayX-backend/src/main/java/com/payx/backend/dto/CrearOperacionCriptoRequest.java): `SIMBOLOS_SOPORTADOS` y el `@Pattern` de validación ahora incluyen `USDT`/`BNB`/`XRP`, y los switch de saldo por moneda tienen sus casos.
+- [PerfilResponse.java](../PayX-backend/src/main/java/com/payx/backend/dto/PerfilResponse.java): expone los 3 saldos nuevos.
+- Frontend: [CriptoModal.jsx](src/components/CriptoModal.jsx) y [Home.jsx](src/pages/Home.jsx) — las listas/mapas de criptomonedas soportadas (nombre, símbolo, saldo) pasaron de 3 a 6 entradas; el selector de sub-pestañas en el balance ahora envuelve en dos filas en pantallas chicas.
+- **Tests:** se agregaron `comprarXrpFuncionaIgualQueLasCriptosOriginales` y `venderBnbFuncionaIgualQueLasCriptosOriginales` en `CriptoServiceTest` para probar el cableado de las 3 monedas nuevas (no hizo falta duplicar todos los casos existentes: la lógica es la misma para las 6). **82/82 tests unitarios pasan**; `PayxBackendApplicationTests.contextLoads` va a fallar hasta que se corra la migración de arriba contra la base real (es esperable: el entity ya mapea columnas que todavía no existen ahí).
+
+---
+
+### Notificaciones de cripto (mensajes) + transferencia de criptomonedas entre usuarios
+
+**Plantillas pedidas para el panel de admin** (con los mismos códigos que ya usa `CriptoService`, variables `{{simbolo}}`, `{{montoCripto}}`, `{{monto}}`, `{{cotizacion}}`, `{{fecha}}`):
+- `CRIPTO_COMPRADA`: "Compraste {{montoCripto}} a {{cotizacion}} por {{monto}} el {{fecha}}."
+- `CRIPTO_VENDIDA`: "Vendiste {{montoCripto}} y recibiste {{monto}} el {{fecha}}."
+
+**Transferir cripto entre usuarios** (BTC/ETH/SOL/USDT/BNB/XRP), igual que ya se podía con pesos y dólares — reutilizando el mismo mecanismo de transferencias (tabla `transacciones`, confirmación/cancelación de pendientes, notificaciones `TRANSFERENCIA_ENVIADA`/`RECIBIDA` ya existentes) en vez de construir uno nuevo aparte.
+
+**Requiere una migración** (agrega precisión, no rompe filas existentes — los montos en pesos/dólares actuales quedan exactamente iguales, solo ganan capacidad de decimales que no usan):
+```sql
+ALTER TABLE transacciones ALTER COLUMN monto TYPE NUMERIC(18,8);
+```
+La columna `monto` era `NUMERIC(15,2)` — alcanzaba para pesos/dólares pero redondeaba a 0 decimales de más cualquier cantidad de cripto (ej. 0.00000866 BTC se hubiera guardado como 0.00). `moneda` ya tenía `length=10`, así que los tickers de cripto (máximo "USDT", 4 caracteres) entran sin cambios ahí.
+
+- [Cuenta.java](../PayX-backend/src/main/java/com/payx/backend/model/Cuenta.java): se agregaron `getSaldoDeMoneda(moneda)` / `sumarSaldoDeMoneda(moneda, delta)` — un único lugar que sabe "qué campo de saldo corresponde a esta moneda" (las 8 soportadas: PESOS, USD, BTC, ETH, SOL, USDT, BNB, XRP), para no repetir el mismo switch en cada servicio que mueve plata en una moneda cualquiera.
+- [CriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CriptoService.java): se refactorizó para usar estos métodos nuevos en vez de su propio switch privado (mismo comportamiento, menos código duplicado).
+- [TransferenciaService.java](../PayX-backend/src/main/java/com/payx/backend/service/TransferenciaService.java): `validarSaldoSuficiente`/`ejecutarMovimiento` ahora usan `Cuenta.getSaldoDeMoneda`/`sumarSaldoDeMoneda` en vez de un `if PESOS ... else USD` fijo — así soportan cualquiera de las 8 monedas sin más cambios si se agrega otra en el futuro. `formatearMontoNotificacion` distingue fiat (con símbolo $/US$, 2 decimales) de cripto (sin símbolo fiat, ticker después del número, sin ceros de relleno — ej. "0.5 BTC").
+- [CrearTransferenciaRequest.java](../PayX-backend/src/main/java/com/payx/backend/dto/CrearTransferenciaRequest.java): el `@Pattern` de moneda ahora incluye las 6 criptos, y el monto acepta hasta 8 decimales (antes 2 fijos).
+- **Tests:** se agregaron `unaTransferenciaDeCriptoMueveElSaldoDeEsaCriptoEspecifica` y `noSePuedeTransferirMasCriptoDeLaQueSeTiene` en `TransferenciaServiceTest`. **83/83 tests unitarios pasan** (el refactor de `Cuenta`/`CriptoService` no rompió ningún test existente).
+
+**Frontend:**
+- [TransferModal.jsx](src/components/TransferModal.jsx): generalizado para aceptar `config.esCripto` — en ese caso muestra un select de criptomoneda (BTC/ETH/SOL/USDT/BNB/XRP) arriba del formulario, y el saldo/símbolo/decimales mostrados (8 en vez de 2) siguen a la moneda elegida. Pesos y dólares siguen funcionando exactamente igual que antes (su `config` no tiene `esCripto`).
+- [Home.jsx](src/pages/Home.jsx): nueva acción "Transferencia en cripto" (junto a "Transferir" y "Transferencia en dólares"), con un `configModalCripto` que le pasa al modal los 6 saldos reales del perfil.
+- [ActividadItem.jsx](src/components/ActividadItem.jsx) y [TransferenciaDetalleModal.jsx](src/components/TransferenciaDetalleModal.jsx): **bug encontrado y arreglado antes de que llegara a verse** — como ambos ya mostraban cualquier `transferencia` (no sabían que ahora podían venir en cripto), formateaban el monto siempre a 2 decimales con símbolo "$" por defecto. Una transferencia de 0.5 BTC se hubiera mostrado como "$0.50". Ahora detectan si la moneda es una cripto y muestran el ticker después del número sin redondear a 2 decimales (igual que ya se hacía en `cambioCripto`).
+
+---
+
+### Auditoría del módulo de cripto: precios, datos, API y "horarios" (timing)
+
+Pedido explícito: romper el módulo de compra/venta de cripto por todos los medios posibles (precios, datos, la API externa, timing) y arreglar lo que se encuentre. Se encontraron y arreglaron 4 problemas reales, todos verificados con la misma metodología usada en la auditoría de dólares: escribir el test, confirmar que falla revirtiendo el fix, y volver a aplicarlo.
+
+**1. Arbitraje por redondeo — el más serio, plata gratis real.** [CriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CriptoService.java) redondeaba con `HALF_UP` tanto al comprar (pesos → cripto) como al vender (cripto → pesos). Como cripto usa **un único precio** para ambas puntas (a diferencia del dólar, que tiene spread compra/venta que absorbe cualquier ruido de redondeo), redondear "para arriba" dos veces seguidas permitía un ida y vuelta con ganancia neta: a una cotización de $100.000.000, comprar con $1.234.567,89 y vender ese mismo monto de cripto de vuelta devolvía $1.234.568,00 — **11 centavos de ganancia gratis, repetible sin límite** (a razón de ~7 ida-y-vueltas por minuto por el rate limit, esto escala). **Fix:** `RoundingMode.DOWN` en vez de `HALF_UP` en lo que el usuario RECIBE en ambas direcciones — matemáticamente, redondear siempre hacia abajo en ambos sentidos hace imposible que un ida y vuelta devuelva más de lo que se puso. Confirmado con `compraYVentaInmediataDeLaMismaCriptoNuncaDejaMasPesosQueAlEmpezar` en `CriptoServiceTest`, revirtiendo el fix para ver el test fallar antes de restaurarlo. El dólar no tiene este problema (su spread ya lo cubre) y no se tocó.
+
+**2. Sin timeout en las APIs externas — un colgado bloqueaba a todos los usuarios.** Ni [CriptoPriceClientImpl.java](../PayX-backend/src/main/java/com/payx/backend/client/CriptoPriceClientImpl.java) (CoinGecko) ni [DolarApiClientImpl.java](../PayX-backend/src/main/java/com/payx/backend/client/DolarApiClientImpl.java) (dolarapi.com) tenían ningún timeout configurado. Como el método que consulta el proveedor es `synchronized` (para evitar pegarle varias veces en simultáneo), un proveedor que acepta la conexión pero nunca responde (colgado, no caído) hubiera dejado ese hilo esperando indefinidamente **con el lock tomado** — bloqueando a todos los demás usuarios pidiendo cotización u operando, no solo al que disparó la llamada. **Fix:** ambos clientes ahora usan un `RestClient` con `JdkClientHttpRequestFactory` configurado con connect timeout de 3s y read timeout de 5s.
+
+**3. Un precio inválido de UNA cripto tumbaba las 6.** [CotizacionCriptoService.java](../PayX-backend/src/main/java/com/payx/backend/service/CotizacionCriptoService.java) cacheaba la lista de las 6 cotizaciones como "todo o nada": si CoinGecko devolvía un precio en cero/negativo (o directamente omitía una moneda) para una sola cripto, se descartaba el lote completo y las otras 5 —que habían llegado bien— también se quedaban con el precio viejo. **Fix:** el cache ahora es *por moneda* (`Map<String, PrecioCacheado>`), así una cripto con problemas no afecta a las demás. Se reescribieron los tests de `CotizacionCriptoServiceTest` para probar esto explícitamente (`unaCotizacionInvalidaNoPisaSuPropioCacheNiAfectaALasDemasQueLleganBien`).
+
+**4. Sin techo de antigüedad para operar (el "horarios" del pedido).** Si el proveedor externo estaba caído durante horas, el precio cacheado se seguía usando para operar plata real indefinidamente (solo se marcaba "desactualizada" para mostrarlo, sin ningún límite real). **Fix:** se agregó `MAX_EDAD_PARA_OPERAR` (5 minutos) en `CotizacionCriptoService.precioDe()` — mostrar un precio viejo en el ticker sigue funcionando siempre (mejor mostrar algo que nada), pero **operar** con él se corta pasados 5 minutos sin poder refrescarlo. Se aplicó el mismo criterio a [CotizacionService.java](../PayX-backend/src/main/java/com/payx/backend/service/CotizacionService.java) (dólar) por consistencia, ya que el mismo riesgo aplica ahí igual.
+
+**Cosa que se consideró y se decidió NO hacer:** un "circuit breaker" que rechace un precio nuevo si se desvía demasiado (ej. 30%) del último conocido, para blindar contra un glitch del proveedor (precio con un cero de más/menos). Se descartó porque, si el precio real se mueve fuerte y sostenido (una baja/suba real grande), el circuit breaker lo rechazaría para siempre —cada intento nuevo también "se desviaría demasiado" del último valor bueno, que cada vez queda más viejo— dejando el precio congelado permanentemente en el peor momento posible (un crash real). Evitarlo bien requeriría una máquina de estados con umbrales de tiempo/reintentos, que se juzgó desproporcionado para el riesgo real (CoinGecko sirviendo un precio absurdo de forma sostenida).
+
+**También:** se agregaron tests puntuales de rate limit para los endpoints de cripto (`POST /api/cripto`, `GET /api/cotizacion/cripto`) en `RateLimitFilterTest`, que ya estaban protegidos pero no tenían un test propio (solo se probaba el mecanismo genérico contra `/api/cambio-dolares`).
+
+**95/95 tests unitarios pasan, incluyendo `PayxBackendApplicationTests.contextLoads`** (las migraciones de la sesión anterior —`saldo_usdt`/`saldo_bnb`/`saldo_xrp` y el ancho de `transacciones.monto`— ya estaban corridas contra la base real).
+
+---

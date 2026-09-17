@@ -6,6 +6,7 @@ import TransferenciaDetalleModal from '../components/TransferenciaDetalleModal';
 import { listarTransferencias } from '../services/transferenciaService';
 import { listarPlazosFijos } from '../services/plazoFijoService';
 import { listarCambiosDolares } from '../services/cambioDolaresService';
+import { listarOperacionesCripto } from '../services/criptoService';
 import { construirActividades } from '../utils/actividad';
 import { IconArrowLeft } from '../components/icons/Icons';
 import './Home.css';
@@ -16,10 +17,11 @@ function Movimientos() {
     const [transferencias, setTransferencias] = useState([]);
     const [plazosFijos, setPlazosFijos] = useState([]);
     const [cambiosDolares, setCambiosDolares] = useState([]);
+    const [cambiosCripto, setCambiosCripto] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [detalleActivo, setDetalleActivo] = useState(null);
 
-    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares);
+    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto);
 
     useEffect(() => {
         cargar();
@@ -38,14 +40,16 @@ function Movimientos() {
     async function cargar() {
         setCargando(true);
         try {
-            const [datosTransferencias, datosPlazosFijos, datosCambios] = await Promise.all([
+            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto] = await Promise.all([
                 listarTransferencias(),
                 listarPlazosFijos(),
                 listarCambiosDolares(),
+                listarOperacionesCripto(),
             ]);
             setTransferencias(datosTransferencias);
             setPlazosFijos(datosPlazosFijos);
             setCambiosDolares(datosCambios);
+            setCambiosCripto(datosCripto);
         } catch {
             // si falla, se muestra la lista vacia
         } finally {
@@ -55,14 +59,16 @@ function Movimientos() {
 
     async function refrescarSilencioso() {
         try {
-            const [datosTransferencias, datosPlazosFijos, datosCambios] = await Promise.all([
+            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto] = await Promise.all([
                 listarTransferencias(),
                 listarPlazosFijos(),
                 listarCambiosDolares(),
+                listarOperacionesCripto(),
             ]);
             setTransferencias(datosTransferencias);
             setPlazosFijos(datosPlazosFijos);
             setCambiosDolares(datosCambios);
+            setCambiosCripto(datosCripto);
             setDetalleActivo((actual) => (actual ? datosTransferencias.find((t) => t.id === actual.id) || actual : actual));
         } catch {
             // si falla, se mantiene la lista tal como estaba
@@ -86,7 +92,7 @@ function Movimientos() {
                 </button>
 
                 <h1 className="movimientos-titulo">Todos tus movimientos</h1>
-                <p className="movimientos-subtitulo">Transferencias, plazos fijos y compra/venta de dólares</p>
+                <p className="movimientos-subtitulo">Transferencias, plazos fijos, dólares y cripto</p>
 
                 {cargando && <p className="movimientos-cargando">Cargando movimientos...</p>}
 
@@ -102,6 +108,7 @@ function Movimientos() {
                                 transferencia={item.transferencia}
                                 plazoFijoEvento={item.plazoFijoEvento}
                                 cambioDolares={item.cambioDolares}
+                                cambioCripto={item.cambioCripto}
                                 onClick={
                                     item.transferencia ? () => setDetalleActivo(item.transferencia)
                                         : item.plazoFijoEvento ? () => navigate('/plazos-fijos')

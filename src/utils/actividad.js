@@ -1,8 +1,8 @@
 // Arma un feed de actividad combinando transferencias, eventos de plazo fijo
-// (alta y, si ya vencio, acreditacion) y operaciones de compra/venta de dolares,
-// ordenado por fecha mas reciente primero. Se usa tanto en Home (resumen) como en
-// Movimientos (listado completo) para no duplicar esta logica en los dos lados.
-export function construirActividades(transferencias, plazosFijos, cambiosDolares = []) {
+// (alta y, si ya vencio, acreditacion) y operaciones de compra/venta de dolares y
+// de cripto, ordenado por fecha mas reciente primero. Se usa tanto en Home
+// (resumen) como en Movimientos (listado completo) para no duplicar esta logica.
+export function construirActividades(transferencias, plazosFijos, cambiosDolares = [], cambiosCripto = []) {
     const items = [];
 
     for (const t of transferencias) {
@@ -21,6 +21,10 @@ export function construirActividades(transferencias, plazosFijos, cambiosDolares
 
     for (const c of cambiosDolares) {
         items.push({ key: `cd-${c.id}`, fecha: c.fecha, cambioDolares: c });
+    }
+
+    for (const c of cambiosCripto) {
+        items.push({ key: `cc-${c.id}`, fecha: c.fecha, cambioCripto: c });
     }
 
     items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));

@@ -12,7 +12,10 @@ import { listarTransferencias } from '../services/transferenciaService';
 import { listarPlazosFijos } from '../services/plazoFijoService';
 import { listarCambiosDolares } from '../services/cambioDolaresService';
 import { obtenerCotizacionDolar } from '../services/cotizacionService';
+import { listarOperacionesCripto } from '../services/criptoService';
+import { obtenerCotizacionesCripto } from '../services/cotizacionCriptoService';
 import { construirActividades } from '../utils/actividad';
+import { useValorAnimado } from '../hooks/useValorAnimado';
 import {
     IconSend, IconQrCode, IconPiggyBank,
     IconDollarSign, IconArrowDownCircle, IconArrowUpCircle, IconCoins,
@@ -20,12 +23,10 @@ import {
 } from '../components/icons/Icons';
 import './Home.css';
 
-// Cripto todavia no tiene backend (ni saldo ni compra/venta reales): sigue siendo mock.
-const SALDO_CRIPTO_MOCK = { saldo: 5310.00, rendimiento: 612.75 };
-
 const ACCIONES_GENERALES = [
     { label: 'Transferir', Icon: IconSend, accion: 'transferir-pesos' },
     { label: 'Transferencia en dólares', Icon: IconDollarSign, accion: 'transferir-dolares' },
+    { label: 'Transferencia en cripto', Icon: IconCoins, accion: 'transferir-cripto' },
     { label: 'Pagar con QR', Icon: IconQrCode },
     { label: 'Tarjeta virtual', Icon: IconCreditCard },
 ];
@@ -43,6 +44,18 @@ function formatearMonto(valor) {
     return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
+// Sin ceros de relleno hasta 8 decimales, para mostrar tenencias chicas de cripto
+// (0.5 en vez de 0.50000000) sin perder precision cuando sí hacen falta decimales.
+function formatearMontoCripto(valor) {
+    return valor.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 8 });
+}
+
+const CRIPTOS_DISPONIBLES = ['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP'];
+const SALDO_KEY_CRIPTO = {
+    BTC: 'saldoBtc', ETH: 'saldoEth', SOL: 'saldoSolana',
+    USDT: 'saldoUsdt', BNB: 'saldoBnb', XRP: 'saldoXrp',
+};
+
 function Home() {
     const navigate = useNavigate();
     const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
@@ -53,20 +66,31 @@ function Home() {
     const [plazosFijos, setPlazosFijos] = useState([]);
     const [cambiosDolares, setCambiosDolares] = useState([]);
     const [cotizacionDolar, setCotizacionDolar] = useState(null);
+    const [cambiosCripto, setCambiosCripto] = useState([]);
+    const [cotizacionesCripto, setCotizacionesCripto] = useState([]);
     const [detalleActivo, setDetalleActivo] = useState(null);
 
     const [monedaActiva, setMonedaActiva] = useState('pesos');
+    const [criptoSeleccionada, setCriptoSeleccionada] = useState('BTC');
     const [saldoVisible, setSaldoVisible] = useState(true);
-    const [saldoAnimado, setSaldoAnimado] = useState(0);
     const [aviso, setAviso] = useState(null);
     const avisoTimeoutRef = useRef(null);
-    const [modalActivo, setModalActivo] = useState(null); // null | 'pesos' | 'dolares'
+    const [modalActivo, setModalActivo] = useState(null); // null | 'pesos' | 'dolares' | 'cripto'
     const [plazoFijoAbierto, setPlazoFijoAbierto] = useState(false);
     const [cambioDolaresActivo, setCambioDolaresActivo] = useState(null); // null | 'compra' | 'venta'
     const [cambioCriptoActivo, setCambioCriptoActivo] = useState(null); // null | 'compra' | 'venta'
 
     const saldoPesos = Number(perfil?.saldoPesos ?? 0);
     const saldoDolares = Number(perfil?.saldoUsd ?? 0);
+
+    // Saldo de cada cripto en su propia unidad (no hay rendimiento/P&L: no se
+    // guarda un precio de compra promedio para calcularlo). El boton BTC/ETH/SOL
+    // elige cual se muestra como numero grande, igual que "Pesos"/"Dólares" ya
+    // muestran cada uno su propia moneda en vez de un total mezclado.
+    const precioDe = (simbolo) => Number(cotizacionesCripto.find((c) => c.simbolo === simbolo)?.precio ?? 0);
+    const saldoCriptoNativo = Number(perfil?.[SALDO_KEY_CRIPTO[criptoSeleccionada]] ?? 0);
+    const precioCriptoSeleccionada = precioDe(criptoSeleccionada);
+    const equivalentePesosCriptoSeleccionada = saldoCriptoNativo * precioCriptoSeleccionada;
 
     // Alias a los que ya se les transfirio, mas reciente primero y sin repetidos,
     // para sugerirlos en el modal de transferencia y no tener que escribirlos de nuevo.
@@ -81,12 +105,15 @@ function Home() {
         return contactos;
     })();
 
-    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares);
+    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto);
 
     const MONEDAS = [
         { key: 'pesos', label: 'Pesos', simbolo: '$', saldo: saldoPesos },
         { key: 'dolares', label: 'Dólares', simbolo: 'US$', saldo: saldoDolares },
-        { key: 'cripto', label: 'Cripto', simbolo: '$', ...SALDO_CRIPTO_MOCK },
+        {
+            key: 'cripto', label: 'Cripto', simbolo: criptoSeleccionada, saldo: saldoCriptoNativo,
+            esCripto: true, equivalentePesos: equivalentePesosCriptoSeleccionada,
+        },
     ];
     const monedaData = MONEDAS.find((m) => m.key === monedaActiva);
 
@@ -108,6 +135,16 @@ function Home() {
         mostrarEquivalente: true,
         // Cotizacion real (oficial, venta) para el "≈ $ tal en pesos" de la vista previa.
         cotizacion: Number(cotizacionDolar?.venta ?? 0),
+    };
+
+    const configModalCripto = {
+        titulo: 'Transferencia en cripto',
+        esCripto: true,
+        saldosPorCripto: {
+            BTC: perfil?.saldoBtc, ETH: perfil?.saldoEth, SOL: perfil?.saldoSolana,
+            USDT: perfil?.saldoUsdt, BNB: perfil?.saldoBnb, XRP: perfil?.saldoXrp,
+        },
+        placeholderDestinatario: 'CVU, alias o @usuario',
     };
 
     const configComprarDolares = {
@@ -192,6 +229,25 @@ function Home() {
         }
     };
 
+    const cargarCambiosCripto = async () => {
+        try {
+            const datos = await listarOperacionesCripto();
+            setCambiosCripto(datos);
+        } catch {
+            // si falla, se mantiene la ultima lista conocida
+        }
+    };
+
+    // Mismo motivo que cargarCotizacion: el backend cachea los precios de cripto 60s.
+    const cargarCotizacionesCripto = async () => {
+        try {
+            const datos = await obtenerCotizacionesCripto();
+            setCotizacionesCripto(datos);
+        } catch {
+            // si falla, se mantienen las ultimas cotizaciones conocidas (o vacio la primera vez)
+        }
+    };
+
     const cargarDatosTrasTransferencia = () => {
         cargarPerfil();
         cargarTransferencias();
@@ -213,14 +269,23 @@ function Home() {
         window.dispatchEvent(new Event('notificaciones-actualizadas'));
     };
 
-    // Carga inicial de saldo real (pesos/dolares), transferencias, plazos fijos,
-    // cambios de dolares hechos y la cotizacion actual
+    const cargarDatosTrasCripto = () => {
+        cargarPerfil();
+        cargarCambiosCripto();
+        // Comprar/vender cripto genera una notificacion al instante
+        window.dispatchEvent(new Event('notificaciones-actualizadas'));
+    };
+
+    // Carga inicial de saldo real (pesos/dolares/cripto), transferencias, plazos
+    // fijos, cambios de dolares y de cripto hechos, y las cotizaciones actuales
     useEffect(() => {
         obtenerPerfil().then(setPerfil).catch(() => {});
         listarTransferencias().then(setTransferencias).catch(() => {});
         listarPlazosFijos().then(setPlazosFijos).catch(() => {});
         listarCambiosDolares().then(setCambiosDolares).catch(() => {});
+        listarOperacionesCripto().then(setCambiosCripto).catch(() => {});
         cargarCotizacion();
+        cargarCotizacionesCripto();
     }, []);
 
     // Polling: si otro usuario confirma o cancela una transferencia pendiente que
@@ -233,34 +298,25 @@ function Home() {
             cargarTransferencias();
             cargarPlazosFijos();
             cargarCambiosDolares();
+            cargarCambiosCripto();
         }, 5000);
         return () => clearInterval(intervalo);
     }, []);
 
-    // La cotizacion se refresca aparte, cada 20s: pollearla a 5s no traeria nada
-    // mas fresco (el backend la cachea 60s) y solo agregaria pedidos de mas.
+    // Las cotizaciones se refrescan aparte, cada 20s: pollearlas a 5s no traeria
+    // nada mas fresco (el backend las cachea 60s) y solo agregaria pedidos de mas.
     useEffect(() => {
-        const intervalo = setInterval(cargarCotizacion, 20000);
+        const intervalo = setInterval(() => {
+            cargarCotizacion();
+            cargarCotizacionesCripto();
+        }, 20000);
         return () => clearInterval(intervalo);
     }, []);
 
-    // Animacion de conteo del saldo al montar o cambiar de moneda
-    useEffect(() => {
-        let frame;
-        const duracion = 700;
-        const inicio = performance.now();
-        const desde = 0;
-        const hasta = monedaData.saldo;
-
-        function tick(ahora) {
-            const progreso = Math.min((ahora - inicio) / duracion, 1);
-            const facil = 1 - Math.pow(1 - progreso, 3);
-            setSaldoAnimado(desde + (hasta - desde) * facil);
-            if (progreso < 1) frame = requestAnimationFrame(tick);
-        }
-        frame = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(frame);
-    }, [monedaActiva, monedaData.saldo]);
+    // El numero grande se desliza suavemente hacia el saldo real cada vez que
+    // cambia (al cambiar de pestaña de moneda, o -en cripto- porque el precio en
+    // vivo se movio), en vez de reiniciar a cero cada vez que la cotizacion ticka.
+    const [saldoAnimado] = useValorAnimado(monedaData.saldo, 700);
 
     const mostrarProximamente = () => {
         setAviso('Esta función va a estar disponible próximamente.');
@@ -271,6 +327,7 @@ function Home() {
     const manejarAccion = (accion) => {
         if (accion === 'transferir-pesos') { setModalActivo('pesos'); return; }
         if (accion === 'transferir-dolares') { setModalActivo('dolares'); return; }
+        if (accion === 'transferir-cripto') { setModalActivo('cripto'); return; }
         if (accion === 'plazo-fijo') { setPlazoFijoAbierto(true); return; }
         if (accion === 'mis-plazos-fijos') { navigate('/plazos-fijos'); return; }
         if (accion === 'comprar-dolares') { setCambioDolaresActivo('compra'); return; }
@@ -316,12 +373,29 @@ function Home() {
                             ))}
                         </div>
 
+                        {monedaActiva === 'cripto' && (
+                            <div className="home-tabs-cripto">
+                                {CRIPTOS_DISPONIBLES.map((c) => (
+                                    <button
+                                        key={c}
+                                        className={`home-tab-cripto ${criptoSeleccionada === c ? 'activo' : ''}`}
+                                        onClick={() => setCriptoSeleccionada(c)}
+                                    >
+                                        {c}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="home-saldo-fila">
                             <div className="home-saldo-monto">
-                                <span className="home-saldo-simbolo">{monedaData.simbolo}</span>
+                                <span className="home-saldo-simbolo">{monedaData.esCripto ? '' : monedaData.simbolo}</span>
                                 <span className="home-saldo-numero">
-                                    {saldoVisible ? formatearMonto(saldoAnimado) : '••••••'}
+                                    {saldoVisible
+                                        ? (monedaData.esCripto ? formatearMontoCripto(saldoAnimado) : formatearMonto(saldoAnimado))
+                                        : '••••••'}
                                 </span>
+                                {monedaData.esCripto && <span className="home-saldo-simbolo-sufijo">{monedaData.simbolo}</span>}
                                 <button
                                     className="home-saldo-toggle"
                                     onClick={() => setSaldoVisible(!saldoVisible)}
@@ -341,6 +415,11 @@ function Home() {
                             </div>
                         </div>
 
+                        {saldoVisible && monedaData.esCripto && (
+                            <p className="home-saldo-equivalente">
+                                ≈ $ {formatearMonto(monedaData.equivalentePesos)}
+                            </p>
+                        )}
                         {saldoVisible && monedaData.rendimiento != null && (
                             <p className="home-rendimiento">
                                 Rindió <strong>{monedaData.simbolo} {formatearMonto(monedaData.rendimiento)}</strong> en los últimos 12 meses
@@ -411,6 +490,7 @@ function Home() {
                             transferencia={item.transferencia}
                             plazoFijoEvento={item.plazoFijoEvento}
                             cambioDolares={item.cambioDolares}
+                            cambioCripto={item.cambioCripto}
                             onClick={
                                 item.transferencia ? () => setDetalleActivo(item.transferencia)
                                     : item.plazoFijoEvento ? () => navigate('/plazos-fijos')
@@ -438,6 +518,13 @@ function Home() {
                 onExito={cargarDatosTrasTransferencia}
                 contactos={contactosFrecuentes}
             />
+            <TransferModal
+                abierto={modalActivo === 'cripto'}
+                onCerrar={() => setModalActivo(null)}
+                config={configModalCripto}
+                onExito={cargarDatosTrasTransferencia}
+                contactos={contactosFrecuentes}
+            />
             <PlazoFijoModal
                 abierto={plazoFijoAbierto}
                 onCerrar={() => setPlazoFijoAbierto(false)}
@@ -461,13 +548,15 @@ function Home() {
                 abierto={cambioCriptoActivo === 'compra'}
                 onCerrar={() => setCambioCriptoActivo(null)}
                 tipo="compra"
-                saldoPesos={saldoPesos}
+                perfil={perfil}
+                onExito={cargarDatosTrasCripto}
             />
             <CriptoModal
                 abierto={cambioCriptoActivo === 'venta'}
                 onCerrar={() => setCambioCriptoActivo(null)}
                 tipo="venta"
-                saldoPesos={saldoPesos}
+                perfil={perfil}
+                onExito={cargarDatosTrasCripto}
             />
 
             <TransferenciaDetalleModal

@@ -16,19 +16,24 @@ const MOTIVOS = [
     'Otro',
 ];
 
-function formatearMonto(valor) {
-    return valor.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const CRIPTOS_TRANSFERIBLES = ['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP'];
+
+function formatearMonto(valor, decimales = 2) {
+    return valor.toLocaleString('es-AR', { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 }
 
-// Pantalla completa de transferencia. "config" define si es en pesos o en dolares
-// (simbolo, saldo disponible, moneda para el backend, y si corresponde mostrar
-// el equivalente en pesos). "onExito" se llama despues de crear la transferencia
+// Pantalla completa de transferencia. "config" define si es en pesos, en dolares o
+// en cripto. Para pesos/dolares trae simbolo/saldo/moneda fijos; para cripto
+// (config.esCripto) trae "saldosPorCripto" (uno por moneda) y el usuario elige
+// cual transferir con un select propio, igual que ya se elige en el modal de
+// comprar/vender cripto. "onExito" se llama despues de crear la transferencia
 // para que la pantalla que abrio el modal pueda refrescar saldo y actividad.
 // "contactos" son los alias a los que ya se les transfirio antes (mas reciente
 // primero), para sugerirlos mientras se escribe el destinatario.
 function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'confirmar' | 'exito'
     const [destinatario, setDestinatario] = useState('');
+    const [criptoSeleccionada, setCriptoSeleccionada] = useState('BTC');
     const [monto, setMonto] = useState('');
     const [motivo, setMotivo] = useState('');
     const [tipo, setTipo] = useState('DIRECTA'); // 'DIRECTA' | 'PENDIENTE'
@@ -40,6 +45,12 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
     const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
 
     if (!abierto) return null;
+
+    const esCripto = Boolean(config.esCripto);
+    const moneda = esCripto ? criptoSeleccionada : config.moneda;
+    const simbolo = esCripto ? criptoSeleccionada : config.simbolo;
+    const decimales = esCripto ? 8 : 2;
+    const saldoDisponible = esCripto ? Number(config.saldosPorCripto?.[criptoSeleccionada] ?? 0) : config.saldo;
 
     // Mientras el campo esta vacio se sugieren los contactos mas recientes;
     // en cuanto se escribe algo, se filtra por alias que empiecen con eso.
@@ -55,7 +66,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
     }
 
     const montoNumero = parseFloat(monto) || 0;
-    const saldoRestante = config.saldo - montoNumero;
+    const saldoRestante = saldoDisponible - montoNumero;
     const equivalentePesos = config.mostrarEquivalente ? montoNumero * config.cotizacion : null;
 
     function resetearYCerrar() {
@@ -63,6 +74,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
         setTimeout(() => {
             setPaso('form');
             setDestinatario('');
+            setCriptoSeleccionada('BTC');
             setMonto('');
             setMotivo('');
             setTipo('DIRECTA');
@@ -75,8 +87,14 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
         }, 200);
     }
 
+    function cambiarCripto(key) {
+        setCriptoSeleccionada(key);
+        setMonto('');
+        setError('');
+    }
+
     function usarTodoElSaldo() {
-        setMonto(String(config.saldo));
+        setMonto(String(saldoDisponible));
         setError('');
     }
 
@@ -94,7 +112,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
             setError('Ingresá un monto válido.');
             return;
         }
-        if (montoNumero > config.saldo) {
+        if (montoNumero > saldoDisponible) {
             setError('No tenés saldo suficiente para esta transferencia.');
             return;
         }
@@ -119,7 +137,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
         try {
             const creada = await crearTransferencia({
                 destinatario: destinatario.trim(),
-                moneda: config.moneda,
+                moneda,
                 monto: montoNumero,
                 concepto: motivo || undefined,
                 tipo,
@@ -158,10 +176,24 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
 
                                 <form onSubmit={handleContinuar} className="transfer-form-col" noValidate>
 
+                                    {esCripto && (
+                                        <div className="transfer-campo">
+                                            <label>Criptomoneda</label>
+                                            <div className="transfer-select-wrapper">
+                                                <select value={criptoSeleccionada} onChange={(e) => cambiarCripto(e.target.value)}>
+                                                    {CRIPTOS_TRANSFERIBLES.map((key) => (
+                                                        <option key={key} value={key}>{key}</option>
+                                                    ))}
+                                                </select>
+                                                <IconChevronDown className="transfer-select-icono" size={16} />
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="transfer-modal-saldo">
                                         <span className="transfer-modal-saldo-icono"><IconWallet size={16} /></span>
-                                        <span>Saldo disponible</span>
-                                        <strong>{config.simbolo} {formatearMonto(config.saldo)}</strong>
+                                        <span>{esCripto ? `Saldo disponible de ${simbolo}` : 'Saldo disponible'}</span>
+                                        <strong>{simbolo} {formatearMonto(saldoDisponible, decimales)}</strong>
                                     </div>
 
                                     <div className="transfer-campo">
@@ -199,13 +231,13 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                                     <div className="transfer-campo">
                                         <label>Monto a transferir</label>
                                         <div className="transfer-monto-group">
-                                            <span className="transfer-monto-simbolo">{config.simbolo}</span>
+                                            <span className="transfer-monto-simbolo">{simbolo}</span>
                                             <input
                                                 type="number"
                                                 inputMode="decimal"
                                                 min="0"
-                                                step="0.01"
-                                                placeholder="0,00"
+                                                step={esCripto ? 'any' : '0.01'}
+                                                placeholder={esCripto ? '0' : '0,00'}
                                                 value={monto}
                                                 onChange={(e) => setMonto(e.target.value)}
                                             />
@@ -276,7 +308,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                                 <div className="transfer-resumen-col">
                                     <div className="transfer-resumen-card">
                                         <p className="transfer-resumen-label">Vas a transferir</p>
-                                        <p className="transfer-resumen-monto">{config.simbolo} {formatearMonto(montoNumero)}</p>
+                                        <p className="transfer-resumen-monto">{simbolo} {formatearMonto(montoNumero, decimales)}</p>
 
                                         {destinatario && <p className="transfer-resumen-detalle">a <strong>{destinatario}</strong></p>}
                                         {motivo && <p className="transfer-resumen-detalle-motivo">{motivo}</p>}
@@ -285,11 +317,11 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
 
                                         <div className="transfer-resumen-fila">
                                             <span>Saldo actual</span>
-                                            <span>{config.simbolo} {formatearMonto(config.saldo)}</span>
+                                            <span>{simbolo} {formatearMonto(saldoDisponible, decimales)}</span>
                                         </div>
                                         <div className={`transfer-resumen-fila destacado ${saldoRestante < 0 ? 'negativo' : ''}`}>
                                             <span>Saldo luego de transferir</span>
-                                            <span>{config.simbolo} {formatearMonto(tipo === 'DIRECTA' ? saldoRestante : config.saldo)}</span>
+                                            <span>{simbolo} {formatearMonto(tipo === 'DIRECTA' ? saldoRestante : saldoDisponible, decimales)}</span>
                                         </div>
 
                                         {tipo === 'PENDIENTE' && (
@@ -314,7 +346,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                             <p className="transfer-page-subtitulo">Revisá que los datos sean correctos antes de continuar</p>
 
                             <div className="transfer-confirmar-card">
-                                <p className="transfer-confirmar-monto">{config.simbolo} {formatearMonto(montoNumero)}</p>
+                                <p className="transfer-confirmar-monto">{simbolo} {formatearMonto(montoNumero, decimales)}</p>
                                 {config.mostrarEquivalente && montoNumero > 0 && (
                                     <p className="transfer-equivalente centrado">
                                         ≈ $ {formatearMonto(equivalentePesos)} al tipo de cambio actual
@@ -381,10 +413,10 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                             </h1>
                             <p className="transfer-exito-texto">
                                 {tipo === 'DIRECTA' ? (
-                                    <>Le transferiste <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong></>
+                                    <>Le transferiste <strong>{simbolo} {formatearMonto(montoNumero, decimales)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong></>
                                 ) : (
                                     <>
-                                        Dejaste pendiente una transferencia de <strong>{config.simbolo} {formatearMonto(montoNumero)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong>.
+                                        Dejaste pendiente una transferencia de <strong>{simbolo} {formatearMonto(montoNumero, decimales)}</strong> a <strong>{resultado?.contraparteNombre || destinatarioInfo?.nombreCompleto || destinatario}</strong>.
                                         No se descontó nada todavía: podés confirmarla o cancelarla cuando quieras desde "Consultar todas".
                                     </>
                                 )}

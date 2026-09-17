@@ -4,6 +4,7 @@ import { actualizarConceptoTransferencia, confirmarTransferencia, cancelarTransf
 import './TransferenciaDetalleModal.css';
 
 const SIMBOLOS = { PESOS: '$', USD: 'US$' };
+const MONEDAS_CRIPTO = new Set(['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP']);
 
 const ESTADO_LABEL = {
     PENDIENTE: 'Pendiente',
@@ -13,6 +14,10 @@ const ESTADO_LABEL = {
 
 function formatearMonto(valor) {
     return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatearMontoCripto(valor) {
+    return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 8 });
 }
 
 function formatearFecha(fechaIso) {
@@ -35,7 +40,11 @@ function TransferenciaDetalleModal({ transferencia, onCerrar, onActualizada }) {
 
     const esEnviada = transferencia.direccion === 'ENVIADA';
     const esCancelada = transferencia.estado === 'CANCELADA';
-    const simbolo = SIMBOLOS[transferencia.moneda] || '$';
+    const esCripto = MONEDAS_CRIPTO.has(transferencia.moneda);
+    const simbolo = SIMBOLOS[transferencia.moneda] || '';
+    const montoFormateado = esCripto
+        ? `${formatearMontoCripto(transferencia.monto)} ${transferencia.moneda}`
+        : `${simbolo} ${formatearMonto(transferencia.monto)}`;
 
     async function guardarConcepto() {
         setGuardando(true);
@@ -86,7 +95,7 @@ function TransferenciaDetalleModal({ transferencia, onCerrar, onActualizada }) {
 
                 {/* Cancelada: nunca se movio plata, asi que no se muestra con signo ni color de recibido/enviado */}
                 <div className={`detalle-monto ${esCancelada ? 'cancelada' : (esEnviada ? 'negativo' : 'positivo')}`}>
-                    {esCancelada ? '' : (esEnviada ? '-' : '+')}{simbolo} {formatearMonto(transferencia.monto)}
+                    {esCancelada ? '' : (esEnviada ? '-' : '+')}{montoFormateado}
                 </div>
                 <p className={`detalle-titulo ${esCancelada ? 'cancelada' : ''}`}>
                     {esCancelada ? 'Transferencia cancelada' : (esEnviada ? 'Transferencia enviada' : 'Transferencia recibida')}

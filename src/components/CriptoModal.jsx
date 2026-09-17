@@ -1,44 +1,70 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconCheck, IconWallet, IconChevronDown, IconCoins, IconRefreshCw } from './icons/Icons';
+import { obtenerCotizacionesCripto } from '../services/cotizacionCriptoService';
+import { crearOperacionCripto } from '../services/criptoService';
+import CriptoTicker from './CriptoTicker';
 import './TransferModal.css';
 import './CriptoModal.css';
 
-// Datos de ejemplo: no hay backend de criptomonedas todavia, ni endpoint de cotizaciones
-// ni de tenencias. Los precios y las tenencias son solo para mostrar el diseño.
-const CRIPTOS = [
-    { key: 'BTC', nombre: 'Bitcoin', precioCompra: 94800000, precioVenta: 93200000, tenencia: 0.00050000, decimales: 8 },
-    { key: 'ETH', nombre: 'Ethereum', precioCompra: 3180000, precioVenta: 3110000, tenencia: 0.012000, decimales: 6 },
-    { key: 'SOL', nombre: 'Solana', precioCompra: 212000, precioVenta: 205000, tenencia: 6.500, decimales: 3 },
-];
+const CRIPTOS_DISPONIBLES = ['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP'];
+const NOMBRES = { BTC: 'Bitcoin', ETH: 'Ethereum', SOL: 'Solana', USDT: 'Tether', BNB: 'BNB', XRP: 'XRP' };
+const SALDO_KEY = { BTC: 'saldoBtc', ETH: 'saldoEth', SOL: 'saldoSolana', USDT: 'saldoUsdt', BNB: 'saldoBnb', XRP: 'saldoXrp' };
 
 function formatearNumero(valor, decimales) {
-    return valor.toLocaleString('es-AR', { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+    return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
 }
 
-// Pantalla completa para comprar o vender criptomonedas (BTC, ETH o SOL).
-// "tipo" define si es compra (se paga en pesos) o venta (se entrega la cripto elegida).
-// Es una simulacion, igual que el resto de las operaciones: no hay backend real todavia.
-function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
+function saldoCriptoDe(perfil, simbolo) {
+    return Number(perfil?.[SALDO_KEY[simbolo]] ?? 0);
+}
+
+// Pantalla completa para comprar o vender criptomonedas (BTC, ETH o SOL) contra el
+// backend real: pide la cotizacion en vivo al abrirse y la refresca cada 3s
+// mientras esta abierto (para que el ticker se sienta en vivo, bien por debajo del
+// limite de 30/min del endpoint), y opera siempre con ese mismo precio de mercado
+// -no hay un precio de compra y otro de venta como en el dolar oficial-.
+function CriptoModal({ abierto, onCerrar, tipo, perfil, onExito }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'exito'
+    const [cotizaciones, setCotizaciones] = useState([]);
+    const [cargandoCotizacion, setCargandoCotizacion] = useState(false);
     const [monedaKey, setMonedaKey] = useState('BTC');
     const [monto, setMonto] = useState('');
     const [error, setError] = useState('');
     const [enviando, setEnviando] = useState(false);
+    const [resultado, setResultado] = useState(null);
+
+    const esCompra = tipo === 'compra';
+
+    useEffect(() => {
+        if (!abierto) return;
+        setCargandoCotizacion(true);
+        obtenerCotizacionesCripto()
+            .then(setCotizaciones)
+            .catch(() => setError('No pudimos obtener la cotización de las criptomonedas. Probá de nuevo en un momento.'))
+            .finally(() => setCargandoCotizacion(false));
+    }, [abierto]);
+
+    useEffect(() => {
+        if (!abierto) return;
+        const intervalo = setInterval(() => {
+            obtenerCotizacionesCripto().then(setCotizaciones).catch(() => {});
+        }, 3000);
+        return () => clearInterval(intervalo);
+    }, [abierto]);
 
     if (!abierto) return null;
 
-    const esCompra = tipo === 'compra';
-    const cripto = CRIPTOS.find((c) => c.key === monedaKey);
-    const precio = esCompra ? cripto.precioCompra : cripto.precioVenta;
+    const cotizacionElegida = cotizaciones.find((c) => c.simbolo === monedaKey);
+    const precio = cotizacionElegida ? Number(cotizacionElegida.precio) : null;
 
-    const simboloEntrada = esCompra ? '$' : cripto.key;
-    const simboloSalida = esCompra ? cripto.key : '$';
-    const decimalesEntrada = esCompra ? 2 : cripto.decimales;
-    const decimalesSalida = esCompra ? cripto.decimales : 2;
-    const saldoDisponibleEntrada = esCompra ? saldoPesos : cripto.tenencia;
+    const simboloEntrada = esCompra ? '$' : monedaKey;
+    const simboloSalida = esCompra ? monedaKey : '$';
+    const decimalesEntrada = esCompra ? 2 : 8;
+    const decimalesSalida = esCompra ? 8 : 2;
+    const saldoDisponibleEntrada = esCompra ? Number(perfil?.saldoPesos ?? 0) : saldoCriptoDe(perfil, monedaKey);
 
     const montoEntrada = parseFloat(monto) || 0;
-    const montoSalida = esCompra ? montoEntrada / precio : montoEntrada * precio;
+    const montoSalida = precio ? (esCompra ? montoEntrada / precio : montoEntrada * precio) : 0;
     const saldoRestante = saldoDisponibleEntrada - montoEntrada;
 
     function resetearYCerrar() {
@@ -49,6 +75,7 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
             setMonto('');
             setError('');
             setEnviando(false);
+            setResultado(null);
         }, 200);
     }
 
@@ -63,10 +90,14 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
         setError('');
     }
 
-    function handleSubmit(e) {
+    async function handleSubmit(e) {
         e.preventDefault();
         setError('');
 
+        if (!precio) {
+            setError('Todavía no tenemos la cotización disponible.');
+            return;
+        }
         if (montoEntrada <= 0) {
             setError('Ingresá un monto válido.');
             return;
@@ -74,15 +105,25 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
         if (montoEntrada > saldoDisponibleEntrada) {
             setError(esCompra
                 ? 'No tenés saldo en pesos suficiente para esta compra.'
-                : `No tenés suficiente ${cripto.key} para esta venta.`);
+                : `No tenés suficiente ${monedaKey} para esta venta.`);
             return;
         }
 
         setEnviando(true);
-        setTimeout(() => {
-            setEnviando(false);
+        try {
+            const creado = await crearOperacionCripto({
+                tipo: esCompra ? 'COMPRA' : 'VENTA',
+                simbolo: monedaKey,
+                monto: montoEntrada,
+            });
+            setResultado(creado);
             setPaso('exito');
-        }, 900);
+            onExito?.();
+        } catch (err) {
+            setError(err.response?.data?.error || 'No se pudo realizar la operación. Intenta de nuevo.');
+        } finally {
+            setEnviando(false);
+        }
     }
 
     return (
@@ -102,6 +143,8 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
 
                     {paso === 'form' && (
                         <>
+                            <CriptoTicker cotizaciones={cotizaciones} />
+
                             <h1 className="transfer-page-titulo">{esCompra ? 'Comprar criptomonedas' : 'Vender criptomonedas'}</h1>
                             <p className="transfer-page-subtitulo">
                                 {esCompra ? 'Elegí qué criptomoneda comprar y cuánto querés invertir' : 'Elegí qué criptomoneda vender y cuánto querés recibir'}
@@ -115,11 +158,14 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                                         <label>Criptomoneda</label>
                                         <div className="transfer-select-wrapper">
                                             <select value={monedaKey} onChange={(e) => cambiarMoneda(e.target.value)}>
-                                                {CRIPTOS.map((c) => (
-                                                    <option key={c.key} value={c.key}>
-                                                        {c.nombre} ({c.key}) · $ {formatearNumero(esCompra ? c.precioCompra : c.precioVenta, 0)}
-                                                    </option>
-                                                ))}
+                                                {CRIPTOS_DISPONIBLES.map((key) => {
+                                                    const c = cotizaciones.find((x) => x.simbolo === key);
+                                                    return (
+                                                        <option key={key} value={key}>
+                                                            {NOMBRES[key]} ({key}){c ? ` · $ ${formatearNumero(c.precio, 0)}` : ''}
+                                                        </option>
+                                                    );
+                                                })}
                                             </select>
                                             <IconChevronDown className="transfer-select-icono" size={16} />
                                         </div>
@@ -127,12 +173,12 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
 
                                     <div className="transfer-modal-saldo">
                                         <span className="transfer-modal-saldo-icono"><IconWallet size={16} /></span>
-                                        <span>{esCompra ? 'Saldo disponible en pesos' : `Saldo disponible de ${cripto.key}`}</span>
+                                        <span>{esCompra ? 'Saldo disponible en pesos' : `Saldo disponible de ${monedaKey}`}</span>
                                         <strong>{simboloEntrada} {formatearNumero(saldoDisponibleEntrada, decimalesEntrada)}</strong>
                                     </div>
 
                                     <div className="transfer-campo">
-                                        <label>{esCompra ? 'Monto en pesos a destinar' : `Monto de ${cripto.key} a vender`}</label>
+                                        <label>{esCompra ? 'Monto en pesos a destinar' : `Monto de ${monedaKey} a vender`}</label>
                                         <div className="transfer-monto-group">
                                             <span className="transfer-monto-simbolo">{simboloEntrada}</span>
                                             <input
@@ -148,16 +194,23 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                                                 Usar todo
                                             </button>
                                         </div>
-                                        {montoEntrada > 0 && (
+                                        {montoEntrada > 0 && precio && (
                                             <p className="transfer-equivalente">
-                                                ≈ {simboloSalida} {formatearNumero(montoSalida, decimalesSalida)} al tipo de cambio actual
+                                                ≈ {simboloSalida} {formatearNumero(montoSalida, decimalesSalida)} al precio actual
                                             </p>
                                         )}
                                     </div>
 
                                     <div className="cripto-info">
                                         <IconRefreshCw size={15} />
-                                        <span>Cotización de {esCompra ? 'compra' : 'venta'} de {cripto.nombre}: <strong>$ {formatearNumero(precio, 0)}</strong>.</span>
+                                        {precio ? (
+                                            <span>
+                                                Precio actual de {NOMBRES[monedaKey]}: <strong>$ {formatearNumero(precio, 0)}</strong>
+                                                {cotizacionElegida?.desactualizada && ' · sin poder actualizar en este momento'}
+                                            </span>
+                                        ) : (
+                                            <span>{cargandoCotizacion ? 'Buscando la cotización actual...' : 'No pudimos obtener la cotización.'}</span>
+                                        )}
                                     </div>
 
                                     {error && <div className="transfer-error">{error}</div>}
@@ -166,8 +219,8 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                                         <button type="button" className="transfer-btn-cancelar" onClick={resetearYCerrar}>
                                             Cancelar
                                         </button>
-                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando}>
-                                            {enviando ? 'Procesando...' : (<><IconCoins size={15} /> {esCompra ? 'Comprar' : 'Vender'} {cripto.key}</>)}
+                                        <button type="submit" className="transfer-btn-continuar" disabled={enviando || !precio}>
+                                            {enviando ? 'Procesando...' : (<><IconCoins size={15} /> {esCompra ? 'Comprar' : 'Vender'} {monedaKey}</>)}
                                         </button>
                                     </div>
                                 </form>
@@ -184,11 +237,11 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                                         <div className="transfer-resumen-divisor" />
 
                                         <div className="transfer-resumen-fila">
-                                            <span>Cotización {cripto.key}</span>
-                                            <span>$ {formatearNumero(precio, 0)}</span>
+                                            <span>Precio {monedaKey}</span>
+                                            <span>{precio ? `$ ${formatearNumero(precio, 0)}` : '-'}</span>
                                         </div>
                                         <div className="transfer-resumen-fila">
-                                            <span>{esCompra ? 'Saldo en pesos' : `Saldo en ${cripto.key}`}</span>
+                                            <span>{esCompra ? 'Saldo en pesos' : `Saldo en ${monedaKey}`}</span>
                                             <span>{simboloEntrada} {formatearNumero(saldoDisponibleEntrada, decimalesEntrada)}</span>
                                         </div>
                                         <div className={`transfer-resumen-fila destacado ${saldoRestante < 0 ? 'negativo' : ''}`}>
@@ -202,7 +255,7 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                         </>
                     )}
 
-                    {paso === 'exito' && (
+                    {paso === 'exito' && resultado && (
                         <div className="transfer-exito-page">
                             <div className="transfer-exito-icono">
                                 <IconCheck size={30} />
@@ -210,12 +263,12 @@ function CriptoModal({ abierto, onCerrar, tipo, saldoPesos }) {
                             <h1 className="transfer-page-titulo">{esCompra ? '¡Compra realizada!' : '¡Venta realizada!'}</h1>
                             <p className="transfer-exito-texto">
                                 {esCompra ? (
-                                    <>Compraste <strong>{simboloSalida} {formatearNumero(montoSalida, decimalesSalida)}</strong> pagando <strong>{simboloEntrada} {formatearNumero(montoEntrada, decimalesEntrada)}</strong></>
+                                    <>Compraste <strong>{resultado.simbolo} {formatearNumero(resultado.montoCripto, 8)}</strong> pagando <strong>$ {formatearNumero(resultado.montoPesos, 2)}</strong></>
                                 ) : (
-                                    <>Vendiste <strong>{simboloEntrada} {formatearNumero(montoEntrada, decimalesEntrada)}</strong> y recibiste <strong>{simboloSalida} {formatearNumero(montoSalida, decimalesSalida)}</strong></>
+                                    <>Vendiste <strong>{formatearNumero(resultado.montoCripto, 8)} {resultado.simbolo}</strong> y recibiste <strong>$ {formatearNumero(resultado.montoPesos, 2)}</strong></>
                                 )}
                             </p>
-                            <p className="transfer-exito-concepto">Cotización $ {formatearNumero(precio, 0)} por {cripto.key}</p>
+                            <p className="transfer-exito-concepto">Precio $ {formatearNumero(resultado.cotizacion, 0)} por {resultado.simbolo}</p>
                             <button className="transfer-btn-continuar ancho-completo" onClick={resetearYCerrar}>
                                 Listo
                             </button>

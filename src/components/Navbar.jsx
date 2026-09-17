@@ -15,6 +15,8 @@ const TITULOS_PLANTILLA = {
     PLAZO_FIJO_VENCIDO: 'Plazo fijo acreditado',
     DOLARES_COMPRADOS: 'Compra de dólares',
     DOLARES_VENDIDOS: 'Venta de dólares',
+    CRIPTO_COMPRADA: 'Compra de cripto',
+    CRIPTO_VENDIDA: 'Venta de cripto',
 };
 
 function formatearHora(fechaIso) {
