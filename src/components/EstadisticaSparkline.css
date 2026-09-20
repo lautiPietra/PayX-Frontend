@@ -1,0 +1,24 @@
+.estadistica-sparkline {
+    display: block;
+    width: 100%;
+    height: 72px;
+    /* Se revela de izquierda a derecha. No se usa stroke-dasharray para "dibujar"
+       la linea: con vector-effect: non-scaling-stroke el largo del guion se mide en
+       pixeles y no en la unidad del path, y la linea quedaba cortada en tramitos. */
+    animation: estadistica-sparkline-revelar 1.4s cubic-bezier(0.4, 0, 0.2, 1) 0.3s backwards;
+}
+
+@keyframes estadistica-sparkline-revelar {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .estadistica-sparkline {
+        animation: none;
+    }
+}

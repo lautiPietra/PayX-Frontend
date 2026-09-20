@@ -76,6 +76,12 @@ export const loginConGoogle = async (idToken) => {
     return response.data;
 };
 
+// Id del usuario logueado (null si no hay sesion): sirve para no ofrecerle acciones sobre su propia cuenta.
+export const idUsuarioActual = () => {
+    const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
+    return usuario.id ?? null;
+};
+
 export const esAdmin = () => {
     const usuario = JSON.parse(localStorage.getItem('usuario') || '{}');
     return usuario.rol === 'ADMIN';

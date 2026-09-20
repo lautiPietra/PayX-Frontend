@@ -5,6 +5,7 @@ import ServicioCard from '../components/ServicioCard';
 import FacturaPagoModal from '../components/FacturaPagoModal';
 import { IconArrowLeft } from '../components/icons/Icons';
 import { TEMA_POR_SERVICIO, TEMA_DEFAULT } from '../utils/serviciosTemas';
+import { formatearDia, formatearInstante } from '../utils/fechas';
 import { obtenerPerfil } from '../services/perfilService';
 import { listarServicios, listarHistorialFacturas } from '../services/facturaService';
 import './Movimientos.css';
@@ -14,45 +15,81 @@ function formatearMonto(valor) {
     return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-function formatearFecha(fechaIso) {
-    const [anio, mes, dia] = fechaIso.split('T')[0].split('-').map(Number);
-    return new Date(anio, mes - 1, dia).toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+const LARGO = { day: '2-digit', month: 'long', year: 'numeric' };
+
+// "2026-08" -> "agosto de 2026"
+function formatearPeriodo(periodo) {
+    const [anio, mes] = periodo.split('-').map(Number);
+    return new Date(anio, mes - 1, 1).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+}
+
+function FilaFactura({ factura, detalle, onPagar }) {
+    const tema = TEMA_POR_SERVICIO[factura.servicioCodigo] || TEMA_DEFAULT;
+    return (
+        <div className="servicios-historial-item">
+            <span className="servicios-historial-icono" style={{ backgroundColor: tema.color }}>
+                {createElement(tema.Icon, { size: 16 })}
+            </span>
+            <div className="servicios-historial-info">
+                <p className="servicios-historial-nombre">{factura.servicioNombre}</p>
+                <p className="servicios-historial-periodo">{detalle}</p>
+            </div>
+            <div className="servicios-historial-derecha">
+                <p className="servicios-historial-monto">$ {formatearMonto(factura.monto)}</p>
+                {onPagar ? (
+                    <button className="servicios-historial-btn-pagar" onClick={() => onPagar(factura)}>Pagar</button>
+                ) : (
+                    <span className="servicios-historial-badge pagada">Pagada</span>
+                )}
+            </div>
+        </div>
+    );
 }
 
 function Servicios() {
     const navigate = useNavigate();
     const [tab, setTab] = useState('servicios'); // 'servicios' | 'historial'
     const [servicios, setServicios] = useState([]);
-    const [historial, setHistorial] = useState([]);
+    const [facturas, setFacturas] = useState([]);
     const [saldoPesos, setSaldoPesos] = useState(0);
     const [cargando, setCargando] = useState(true);
     const [servicioAPagar, setServicioAPagar] = useState(null);
 
-    const cargarServicios = useCallback(() => {
-        return Promise.all([listarServicios(), obtenerPerfil()])
-            .then(([lista, perfil]) => {
+    const cargar = useCallback(() => {
+        return Promise.all([
+            listarServicios(),
+            obtenerPerfil(),
+            // Si solo falla el listado de facturas, que igual se puedan ver y pagar los servicios del mes.
+            listarHistorialFacturas().catch(() => []),
+        ])
+            .then(([lista, perfil, todasLasFacturas]) => {
                 setServicios(lista);
                 setSaldoPesos(Number(perfil?.saldoPesos ?? 0));
+                setFacturas(todasLasFacturas);
             })
             .catch(() => {});
     }, []);
 
     useEffect(() => {
-        cargarServicios().finally(() => setCargando(false));
-    }, [cargarServicios]);
+        cargar().finally(() => setCargando(false));
+    }, [cargar]);
 
-    useEffect(() => {
-        if (tab !== 'historial') return;
-        let cancelado = false;
-        listarHistorialFacturas().then((data) => { if (!cancelado) setHistorial(data); }).catch(() => {});
-        return () => { cancelado = true; };
-    }, [tab]);
+    // Las facturas del mes en curso ya se ven como tarjetas en la primera pestaña, asi
+    // que no se repiten en otro lado. Lo que sobra son dos cosas distintas: las de meses
+    // anteriores que quedaron sin pagar (se muestran ahi mismo, para poder pagarlas) y
+    // las ya pagadas (eso es el historial de pagos).
+    const idsDelMes = new Set(servicios.map((s) => s.facturaId));
+    const atrasadas = facturas
+        .filter((f) => f.estado === 'PENDIENTE' && !idsDelMes.has(f.id))
+        .sort((a, b) => a.fechaVencimiento.localeCompare(b.fechaVencimiento));
+    const pagos = facturas
+        .filter((f) => f.estado === 'PAGADA')
+        .sort((a, b) => new Date(b.fechaPago) - new Date(a.fechaPago));
 
-    // El historial trae un FacturaResponse (servicioNombre/id), no el mismo shape
-    // que ServicioConFacturaResponse (nombre/facturaId) que espera el modal de pago
-    // -se arma el objeto equivalente para poder pagar una factura vieja e impaga
-    // sin duplicar el modal.
-    function abrirPagoDesdeHistorial(f) {
+    // Una FacturaResponse (servicioNombre/id) no tiene el mismo shape que un
+    // ServicioConFacturaResponse (nombre/facturaId), que es lo que espera el modal de
+    // pago: se arma el objeto equivalente para reutilizar el mismo modal.
+    function abrirPagoDeFacturaAtrasada(f) {
         setServicioAPagar({
             servicioCodigo: f.servicioCodigo,
             nombre: f.servicioNombre,
@@ -63,8 +100,7 @@ function Servicios() {
     }
 
     function alExitoDePago() {
-        cargarServicios();
-        if (tab === 'historial') listarHistorialFacturas().then(setHistorial).catch(() => {});
+        cargar();
         window.dispatchEvent(new Event('notificaciones-actualizadas'));
     }
 
@@ -81,10 +117,10 @@ function Servicios() {
 
                 <div className="servicios-tabs">
                     <button className={`servicios-tab ${tab === 'servicios' ? 'activo' : ''}`} onClick={() => setTab('servicios')}>
-                        Mis servicios
+                        Facturas del mes
                     </button>
                     <button className={`servicios-tab ${tab === 'historial' ? 'activo' : ''}`} onClick={() => setTab('historial')}>
-                        Historial de pagos
+                        Pagos realizados
                     </button>
                 </div>
 
@@ -92,45 +128,44 @@ function Servicios() {
                     <>
                         {cargando && <p className="movimientos-cargando">Cargando tus servicios...</p>}
                         {!cargando && (
-                            <div className="servicios-lista">
-                                {servicios.map((s) => (
-                                    <ServicioCard key={s.servicioCodigo} servicio={s} onPagar={setServicioAPagar} />
-                                ))}
-                            </div>
+                            <>
+                                <div className="servicios-lista">
+                                    {servicios.map((s) => (
+                                        <ServicioCard key={s.servicioCodigo} servicio={s} onPagar={setServicioAPagar} />
+                                    ))}
+                                </div>
+
+                                {atrasadas.length > 0 && (
+                                    <>
+                                        <h2 className="servicios-seccion-titulo">Facturas anteriores sin pagar</h2>
+                                        <div className="servicios-historial-lista">
+                                            {atrasadas.map((f) => (
+                                                <FilaFactura
+                                                    key={f.id}
+                                                    factura={f}
+                                                    detalle={`${formatearPeriodo(f.periodo)} · Venció el ${formatearDia(f.fechaVencimiento, LARGO)}`}
+                                                    onPagar={abrirPagoDeFacturaAtrasada}
+                                                />
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
+                            </>
                         )}
                     </>
                 )}
 
                 {tab === 'historial' && (
                     <div className="servicios-historial-lista">
-                        {historial.length === 0 && <p className="servicios-historial-vacio">Todavía no pagaste ningún servicio</p>}
-                        {historial.map((f) => {
-                            const tema = TEMA_POR_SERVICIO[f.servicioCodigo] || TEMA_DEFAULT;
-                            const pagada = f.estado === 'PAGADA';
-                            return (
-                                <div key={f.id} className="servicios-historial-item">
-                                    <span className="servicios-historial-icono" style={{ backgroundColor: tema.color }}>
-                                        {createElement(tema.Icon, { size: 16 })}
-                                    </span>
-                                    <div className="servicios-historial-info">
-                                        <p className="servicios-historial-nombre">{f.servicioNombre}</p>
-                                        <p className="servicios-historial-periodo">
-                                            {pagada ? `Pagada el ${formatearFecha(f.fechaPago)}` : `Período ${f.periodo}`}
-                                        </p>
-                                    </div>
-                                    <div className="servicios-historial-derecha">
-                                        <p className="servicios-historial-monto">$ {formatearMonto(f.monto)}</p>
-                                        {pagada ? (
-                                            <span className="servicios-historial-badge pagada">Pagada</span>
-                                        ) : (
-                                            <button className="servicios-historial-btn-pagar" onClick={() => abrirPagoDesdeHistorial(f)}>
-                                                Pagar
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {cargando && <p className="movimientos-cargando">Cargando tus pagos...</p>}
+                        {!cargando && pagos.length === 0 && <p className="servicios-historial-vacio">Todavía no pagaste ningún servicio</p>}
+                        {pagos.map((f) => (
+                            <FilaFactura
+                                key={f.id}
+                                factura={f}
+                                detalle={`${formatearPeriodo(f.periodo)} · Pagada el ${formatearInstante(f.fechaPago, LARGO)}`}
+                            />
+                        ))}
                     </div>
                 )}
             </div>

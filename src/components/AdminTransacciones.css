@@ -1,0 +1,245 @@
+.admin-tx-usuario-filtro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 11px 14px;
+  border: 1px solid #ffd2b8;
+  border-radius: 12px;
+  background-color: #fff3ec;
+  font-size: 13.5px;
+  color: #92400e;
+}
+
+.admin-tx-usuario-filtro button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #ff6b1a;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.admin-tx-usuario-filtro button:hover {
+  background-color: #ffe7d6;
+}
+
+.admin-tx-fecha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.admin-tx-fecha input {
+  padding: 8px 10px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.admin-tx-fecha input:focus {
+  border-color: #ff6b1a;
+}
+
+/* ----- Filas ----- */
+.admin-tx-tipo {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background-color: color-mix(in srgb, var(--color) 14%, transparent);
+  color: var(--color);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-tx-estado {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: #f3f4f6;
+  color: #4b5563;
+}
+
+.admin-tx-estado.completada,
+.admin-tx-estado.pagada,
+.admin-tx-estado.activo {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.admin-tx-estado.pendiente {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.admin-tx-estado.cancelada {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-tx-estado.vencido {
+  background-color: #dbeafe;
+  color: #1e40af;
+}
+
+.admin-tx-usuario {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.admin-tx-usuario .admin-avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.admin-tx-usuario-textos {
+  min-width: 0;
+}
+
+.admin-tx-usuario-nombre,
+.admin-tx-contraparte button {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-tx-usuario-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.admin-tx-usuario-nombre:hover,
+.admin-tx-contraparte button:hover {
+  color: #ff6b1a;
+  text-decoration: underline;
+}
+
+.admin-tx-contraparte {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.admin-tx-contraparte button {
+  font-size: 12.5px;
+  color: #4b5563;
+}
+
+.admin-tx-desconocido {
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.admin-tx-detalle {
+  max-width: 220px;
+  color: #6b7280;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.admin-tx-monto {
+  white-space: nowrap;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----- Cards (mobile) ----- */
+.admin-tx-card-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.admin-tx-card-monto {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.admin-tx-card-detalle {
+  margin: 10px 0 0;
+  font-size: 12.5px;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
+.admin-tx-card-fecha {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+  .admin-tx-fecha {
+    flex: 1 1 140px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+}
+
+.admin-tx-aviso-tope {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+  background-color: #fffbeb;
+  color: #92400e;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ----- Acceso a la ficha del usuario ----- */
+.admin-tx-usuario-linea {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.admin-tx-ficha {
+  display: inline-flex;
+  padding: 3px;
+  border: none;
+  border-radius: 6px;
+  background-color: #f3f4f6;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s;
+}
+
+.admin-tx-ficha:hover {
+  background-color: #fff3ec;
+  color: #ff6b1a;
+}

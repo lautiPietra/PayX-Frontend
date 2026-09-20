@@ -1,0 +1,88 @@
+.admin-exportar-boton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #374151;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.admin-exportar-boton:hover:not(:disabled) {
+  background-color: #fff3ec;
+  border-color: #ff6b1a;
+  color: #c2410c;
+}
+
+.admin-exportar-boton:focus-visible {
+  outline: 2px solid #ff6b1a;
+  outline-offset: 2px;
+}
+
+.admin-exportar-boton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.admin-exportar-boton.exportando svg {
+  animation: admin-exportar-pulso 1s ease-in-out infinite;
+}
+
+@keyframes admin-exportar-pulso {
+  50% { opacity: 0.35; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-exportar-boton.exportando svg {
+    animation: none;
+  }
+}
+
+/* El aviso ocupa toda una fila propia debajo de la fila de filtros. Vacio se oculta a la vista pero no
+   con display:none: un aviso que aparece en una region viva que ya estaba en pantalla se anuncia con
+   lector de pantalla; si la region se crea recien al mostrarse, muchas veces no. */
+.admin-exportar-aviso {
+  flex: 1 0 100%;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+
+.admin-exportar-aviso:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.admin-exportar-aviso.exito {
+  background-color: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
+}
+
+.admin-exportar-aviso.aviso {
+  background-color: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.admin-exportar-aviso.error {
+  background-color: #fee2e2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}

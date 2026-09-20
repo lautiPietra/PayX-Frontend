@@ -1,89 +1,135 @@
+import { useState } from 'react';
+import { COLOR_POR_CATEGORIA, COLOR_CATEGORIA_DEFAULT } from '../utils/estadisticasTemas';
 import './EstadisticaDonut.css';
 
-const COLOR_POR_CATEGORIA = {
-    TRANSFERENCIAS: '#ff6b1a',
-    DOLARES: '#0ea5e9',
-    CRIPTO: '#8b5cf6',
-    PLAZO_FIJO: '#16a34a',
-};
-
+const TAMANIO = 190;
+const CENTRO = TAMANIO / 2;
 const RADIO = 70;
-const GROSOR = 26;
+const GROSOR = 24;
+const GROSOR_ACTIVO = 31;
 const CIRCUNFERENCIA = 2 * Math.PI * RADIO;
 
 function formatearMonto(valor) {
     return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// Grafico de torta/dona armado a mano con circulos SVG (sin libreria de graficos):
+function formatearPorcentaje(valor) {
+    return `${Number(valor).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
+}
+
+// Grafico de dona armado a mano con circulos SVG (sin libreria de graficos):
 // cada categoria es un tramo de circunferencia, con stroke-dasharray marcando
 // "cuanto tramo pinto, cuanto dejo transparente" y un dashoffset acumulado para
-// que empiecen justo donde termino el tramo anterior.
-function EstadisticaDonut({ categorias, total }) {
-    const conGasto = categorias.filter((c) => Number(c.monto) > 0);
+// que empiecen justo donde termino el tramo anterior. Se dibujan TODAS las
+// categorias (las de gasto cero con largo 0) para que al cambiar de periodo cada
+// tramo se anime desde su tamaño anterior en vez de aparecer/desaparecer de golpe.
+function EstadisticaDonut({ categorias, total, textoVacio = "Sin gastos en este período", etiquetaTotal = "Total" }) {
+    const [activa, setActiva] = useState(null);
+    const totalNumero = Number(total);
 
-    if (conGasto.length === 0) {
+    if (!(totalNumero > 0)) {
         return (
             <div className="estadistica-donut-vacio">
-                <svg width="160" height="160" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r={RADIO} fill="none" stroke="#f3f4f6" strokeWidth={GROSOR} />
+                <svg width={TAMANIO} height={TAMANIO} viewBox={`0 0 ${TAMANIO} ${TAMANIO}`}>
+                    <circle cx={CENTRO} cy={CENTRO} r={RADIO} fill="none" stroke="#f3f4f6" strokeWidth={GROSOR} />
                 </svg>
-                <p>Sin gastos en este período</p>
+                <p>{textoVacio}</p>
             </div>
         );
     }
 
-    const totalNumero = Number(total);
-
-    const { segmentos } = conGasto.reduce((acc, c) => {
+    const { segmentos } = categorias.reduce((acc, c) => {
         // Se usa monto/total (la proporcion real) y no el porcentaje ya redondeado
         // que manda el backend: si cada porcentaje se redondea por separado, la
-        // suma de los 4 puede no dar exactamente 100 (ej. 33.3+33.3+33.4=100 esta
-        // bien, pero 33.3+33.3+33.3=99.9 dejaria un hueco/superposicion visible
-        // en la union del primer y ultimo segmento).
-        const largo = totalNumero > 0 ? CIRCUNFERENCIA * (Number(c.monto) / totalNumero) : 0;
+        // suma puede no dar exactamente 100 y dejaria un hueco o superposicion
+        // visible en la union del primer y ultimo segmento.
+        const largo = CIRCUNFERENCIA * (Number(c.monto) / totalNumero);
         return {
             acumulado: acc.acumulado + largo,
             segmentos: [...acc.segmentos, {
                 codigo: c.codigo,
-                color: COLOR_POR_CATEGORIA[c.codigo] || '#9ca3af',
+                color: COLOR_POR_CATEGORIA[c.codigo] || COLOR_CATEGORIA_DEFAULT,
                 largo,
                 offset: -acc.acumulado,
+                indice: acc.segmentos.length,
             }],
         };
     }, { acumulado: 0, segmentos: [] });
 
+    const categoriaActiva = categorias.find((c) => c.codigo === activa);
+
+    function alternar(codigo) {
+        setActiva((actual) => (actual === codigo ? null : codigo));
+    }
+
     return (
         <div className="estadistica-donut">
             <div className="estadistica-donut-grafico">
-                <svg width="160" height="160" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r={RADIO} fill="none" stroke="#f3f4f6" strokeWidth={GROSOR} />
+                <svg width={TAMANIO} height={TAMANIO} viewBox={`0 0 ${TAMANIO} ${TAMANIO}`}>
+                    <circle cx={CENTRO} cy={CENTRO} r={RADIO} fill="none" stroke="#f3f4f6" strokeWidth={GROSOR} />
                     {segmentos.map((s) => (
                         <circle
                             key={s.codigo}
-                            cx="80" cy="80" r={RADIO} fill="none"
-                            stroke={s.color} strokeWidth={GROSOR}
+                            className={`estadistica-donut-segmento${activa && activa !== s.codigo ? ' atenuado' : ''}`}
+                            style={{ animationDelay: `${s.indice * 110}ms` }}
+                            cx={CENTRO} cy={CENTRO} r={RADIO} fill="none"
+                            stroke={s.color}
+                            strokeWidth={activa === s.codigo ? GROSOR_ACTIVO : GROSOR}
                             strokeDasharray={`${s.largo} ${CIRCUNFERENCIA - s.largo}`}
                             strokeDashoffset={s.offset}
-                            transform="rotate(-90 80 80)"
+                            transform={`rotate(-90 ${CENTRO} ${CENTRO})`}
+                            onMouseEnter={() => setActiva(s.codigo)}
+                            onMouseLeave={() => setActiva(null)}
+                            onClick={() => alternar(s.codigo)}
                         />
                     ))}
                 </svg>
                 <div className="estadistica-donut-centro">
-                    <span className="estadistica-donut-centro-label">Total</span>
-                    <span className="estadistica-donut-centro-valor">$ {formatearMonto(total)}</span>
+                    {categoriaActiva ? (
+                        <>
+                            <span className="estadistica-donut-centro-label">{categoriaActiva.etiqueta}</span>
+                            <span className="estadistica-donut-centro-valor">$ {formatearMonto(categoriaActiva.monto)}</span>
+                            <span className="estadistica-donut-centro-pct">{formatearPorcentaje(categoriaActiva.porcentaje)} del total</span>
+                        </>
+                    ) : (
+                        <>
+                            <span className="estadistica-donut-centro-label">{etiquetaTotal}</span>
+                            <span className="estadistica-donut-centro-valor">$ {formatearMonto(total)}</span>
+                            <span className="estadistica-donut-centro-pct">Tocá una categoría</span>
+                        </>
+                    )}
                 </div>
             </div>
 
             <ul className="estadistica-donut-leyenda">
-                {categorias.map((c) => (
-                    <li key={c.codigo}>
-                        <span className="estadistica-donut-punto" style={{ backgroundColor: COLOR_POR_CATEGORIA[c.codigo] || '#9ca3af' }} />
-                        <span className="estadistica-donut-etiqueta">{c.etiqueta}</span>
-                        <span className="estadistica-donut-monto">$ {formatearMonto(c.monto)}</span>
-                        <span className="estadistica-donut-porcentaje">{Number(c.porcentaje).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%</span>
-                    </li>
-                ))}
+                {categorias.map((c, indice) => {
+                    const color = COLOR_POR_CATEGORIA[c.codigo] || COLOR_CATEGORIA_DEFAULT;
+                    const sinGasto = !(Number(c.monto) > 0);
+                    return (
+                        <li
+                            key={c.codigo}
+                            className={`estadistica-donut-fila${activa === c.codigo ? ' activa' : ''}${sinGasto ? ' sin-gasto' : ''}${activa && activa !== c.codigo ? ' atenuada' : ''}`}
+                            style={{ '--color': color }}
+                            tabIndex={0}
+                            onMouseEnter={() => setActiva(c.codigo)}
+                            onMouseLeave={() => setActiva(null)}
+                            onFocus={() => setActiva(c.codigo)}
+                            onBlur={() => setActiva(null)}
+                            onClick={() => alternar(c.codigo)}
+                        >
+                            <span className="estadistica-donut-punto" />
+                            <span className="estadistica-donut-etiqueta">{c.etiqueta}{c.detalle && <small className="estadistica-donut-detalle">{c.detalle}</small>}</span>
+                            <span className="estadistica-donut-monto">$ {formatearMonto(c.monto)}</span>
+                            <span className="estadistica-donut-porcentaje">{formatearPorcentaje(c.porcentaje)}</span>
+                            <span className="estadistica-donut-barra">
+                                <span
+                                    className="estadistica-donut-barra-relleno"
+                                    style={{ width: `${Math.min(100, Number(c.porcentaje))}%`, animationDelay: `${indice * 110}ms` }}
+                                />
+                            </span>
+                        </li>
+                    );
+                })}
             </ul>
         </div>
     );

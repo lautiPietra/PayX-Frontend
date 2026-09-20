@@ -1,32 +1,204 @@
 .estadistica-barras {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
+}
+
+.estadistica-barras-cuerpo {
+    display: flex;
+    gap: 10px;
+}
+
+.estadistica-barras-ejey {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: flex-end;
+    /* 170px del area + 12px extra (6 arriba y 6 abajo) para que cada etiqueta
+       quede centrada sobre su linea guia en vez de pegada al borde. */
+    height: 182px;
+    margin: -6px 0;
+    font-size: 10.5px;
+    line-height: 12px;
+    color: #9ca3af;
+    font-variant-numeric: tabular-nums;
+    min-width: 44px;
+}
+
+.estadistica-barras-area {
+    position: relative;
+    flex: 1;
+    height: 170px;
+    min-width: 0;
+}
+
+.estadistica-barras-guia {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 1px dashed #eef0f3;
+    pointer-events: none;
 }
 
 .estadistica-barras-grafico {
+    position: absolute;
+    inset: 0;
     display: flex;
     align-items: flex-end;
     gap: 3px;
-    height: 140px;
-    padding: 0 2px;
+}
+
+.estadistica-columna {
+    flex: 1;
+    min-width: 2px;
+    height: 100%;
+    display: flex;
+    align-items: flex-end;
+    cursor: pointer;
 }
 
 .estadistica-barra {
-    flex: 1;
-    min-width: 2px;
-    background: linear-gradient(180deg, #ff8b4d, #ff6b1a);
-    border-radius: 3px 3px 0 0;
-    transition: opacity 0.15s, transform 0.3s ease;
+    width: 100%;
+    min-height: 3px;
+    background: linear-gradient(180deg, #ffa066, #ff6b1a);
+    border-radius: 4px 4px 0 0;
+    transform-origin: bottom;
+    transition: height 0.6s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s, opacity 0.2s;
+    animation: estadistica-barra-crecer 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 16ms);
 }
 
-.estadistica-barra:hover {
-    opacity: 0.8;
+.estadistica-columna.vacia .estadistica-barra {
+    background: #eef0f3;
+}
+
+.estadistica-columna.pico .estadistica-barra {
+    background: linear-gradient(180deg, #ff8b4d, #e85d0f);
+    box-shadow: 0 0 14px rgba(255, 107, 26, 0.45);
+}
+
+.estadistica-barras-grafico:hover .estadistica-columna:not(.activa) .estadistica-barra {
+    opacity: 0.55;
+}
+
+.estadistica-columna.activa .estadistica-barra {
+    filter: brightness(1.08);
+}
+
+@keyframes estadistica-barra-crecer {
+    from {
+        transform: scaleY(0);
+        opacity: 0;
+    }
+}
+
+.estadistica-barras-promedio {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 0;
+    border-top: 1.5px dashed rgba(26, 26, 26, 0.45);
+    pointer-events: none;
+    animation: estadistica-barras-aparecer 0.6s ease 0.7s backwards;
+}
+
+.estadistica-barras-promedio-label {
+    position: absolute;
+    right: 0;
+    bottom: 3px;
+    padding: 1px 7px;
+    border-radius: 6px;
+    background-color: #1a1a1a;
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+@keyframes estadistica-barras-aparecer {
+    from {
+        opacity: 0;
+    }
+}
+
+.estadistica-tooltip {
+    position: absolute;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 6px 11px;
+    border-radius: 10px;
+    background-color: #1a1a1a;
+    color: #ffffff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    pointer-events: none;
+    white-space: nowrap;
+    animation: estadistica-tooltip-entrar 0.15s ease;
+}
+
+.estadistica-tooltip.centro {
+    transform: translateX(-50%);
+}
+
+.estadistica-tooltip.izquierda {
+    transform: translateX(-12px);
+    align-items: flex-start;
+}
+
+.estadistica-tooltip.derecha {
+    transform: translateX(calc(-100% + 12px));
+    align-items: flex-end;
+}
+
+@keyframes estadistica-tooltip-entrar {
+    from {
+        opacity: 0;
+        margin-bottom: -4px;
+    }
+}
+
+.estadistica-tooltip-fecha {
+    font-size: 10.5px;
+    color: #9ca3af;
+    text-transform: capitalize;
+}
+
+.estadistica-tooltip-monto {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
 }
 
 .estadistica-barras-eje {
     display: flex;
     justify-content: space-between;
+    padding-left: 54px;
     font-size: 11.5px;
     color: #9ca3af;
+}
+
+@media (max-width: 520px) {
+    .estadistica-barras-ejey {
+        min-width: 36px;
+    }
+
+    .estadistica-barras-eje {
+        padding-left: 46px;
+    }
+
+    .estadistica-barras-grafico {
+        gap: 2px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .estadistica-barra,
+    .estadistica-barras-promedio,
+    .estadistica-tooltip {
+        animation: none;
+        transition: none;
+    }
 }

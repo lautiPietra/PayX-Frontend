@@ -1,0 +1,86 @@
+.admin-paginacion {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.admin-paginacion-info {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 18px;
+}
+
+.admin-paginacion-tamanio {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.admin-paginacion-tamanio select {
+    padding: 5px 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #1a1a1a;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.admin-paginacion-botones {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.admin-paginacion-btn {
+    min-width: 34px;
+    height: 34px;
+    padding: 0 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    background-color: #ffffff;
+    color: #4b5563;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.admin-paginacion-btn:hover:not(:disabled):not(.activo) {
+    background-color: #f3f4f6;
+}
+
+.admin-paginacion-btn.activo {
+    background-color: #1a1a1a;
+    border-color: #1a1a1a;
+    color: #ffffff;
+}
+
+.admin-paginacion-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+.admin-paginacion-salto {
+    padding: 0 4px;
+    color: #9ca3af;
+}
+
+@media (max-width: 768px) {
+    .admin-paginacion {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .admin-paginacion-botones {
+        justify-content: center;
+    }
+}

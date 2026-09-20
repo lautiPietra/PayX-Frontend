@@ -30,3 +30,9 @@ export const retirarDeCajaAhorro = async (id, monto) => {
 export const eliminarCajaAhorro = async (id) => {
     await axios.delete(`${API_URL}/${id}`);
 };
+
+// Cuantas cajas de ahorro puede tener cada usuario (lo define el admin desde el panel): { maxPorUsuario }.
+export const obtenerLimiteCajas = async () => {
+    const response = await axios.get(`${API_URL}/limite`);
+    return response.data;
+};

@@ -4,12 +4,10 @@ import Navbar from '../components/Navbar';
 import PlazoFijoModal from '../components/PlazoFijoModal';
 import { IconArrowLeft, IconPiggyBank, IconPlus } from '../components/icons/Icons';
 import { obtenerPerfil } from '../services/perfilService';
-import { listarPlazosFijos } from '../services/plazoFijoService';
+import { listarPlazosFijos, obtenerTasasPlazoFijo } from '../services/plazoFijoService';
 import './Movimientos.css';
 import './PlazosFijos.css';
 import '../components/PlazoFijoModal.css';
-
-const MAX_PLAZOS_ACTIVOS = 5;
 
 function formatearMonto(valor) {
     return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -32,6 +30,9 @@ function PlazosFijos() {
     const [plazos, setPlazos] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [modalAbierto, setModalAbierto] = useState(false);
+    // Cuantos plazos activos puede tener cada usuario: lo define el admin desde el panel, asi que viene del
+    // backend (null mientras no llego; el backend igual rechaza lo que se pase del limite).
+    const [maxActivos, setMaxActivos] = useState(null);
 
     const saldoPesos = Number(perfil?.saldoPesos ?? 0);
     const activos = plazos.filter((p) => p.estado === 'ACTIVO').length;
@@ -50,6 +51,7 @@ function PlazosFijos() {
 
     async function cargar() {
         setCargando(true);
+        obtenerTasasPlazoFijo().then((datos) => setMaxActivos(Number(datos.maxActivos))).catch(() => {});
         try {
             const [datosPerfil, datosPlazos] = await Promise.all([obtenerPerfil(), listarPlazosFijos()]);
             setPerfil(datosPerfil);
@@ -88,13 +90,13 @@ function PlazosFijos() {
                 <div className="plazos-fijos-header">
                     <div>
                         <h1 className="movimientos-titulo">Tus plazos fijos</h1>
-                        <p className="movimientos-subtitulo">{activos}/{MAX_PLAZOS_ACTIVOS} activos</p>
+                        <p className="movimientos-subtitulo">{maxActivos !== null ? `${activos}/${maxActivos} activos` : `${activos} activos`}</p>
                     </div>
                     <button
                         className="plazos-fijos-btn-nuevo"
                         onClick={() => setModalAbierto(true)}
-                        disabled={activos >= MAX_PLAZOS_ACTIVOS}
-                        title={activos >= MAX_PLAZOS_ACTIVOS ? 'Ya tenés el máximo de plazos fijos activos' : undefined}
+                        disabled={maxActivos !== null && activos >= maxActivos}
+                        title={maxActivos !== null && activos >= maxActivos ? 'Ya tenés el máximo de plazos fijos activos' : undefined}
                     >
                         <IconPlus size={16} /> Constituir nuevo
                     </button>

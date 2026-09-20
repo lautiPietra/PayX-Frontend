@@ -818,7 +818,7 @@ Nota: no se pudo probar en un navegador real dentro de este entorno — se verif
 
 Pedido explícito: buscar todo lo que pudiera romperse en lo implementado ese día y arreglarlo. Se encontraron y arreglaron 6 problemas reales.
 
-**1. Condición de carrera real en `FacturaService` — la más seria.** `listarServiciosConFacturaActual` crea, en loop, la factura del período actual de cada uno de los 6 servicios si todavía no existía, sin ningún lock. Ese endpoint (`GET /api/facturas`) se pide en cada carga de la página de Servicios, y en desarrollo **React StrictMode duplica el efecto que lo dispara** — es decir, dos pedidos casi simultáneos son el caso normal, no uno raro. Si los dos "no encuentran" la factura de un servicio y los dos intentan crearla, la constraint `UNIQUE (usuario_id, servicio_codigo, periodo)` frena el duplicado en la base, pero sin manejarlo esa excepción se hubiera visto como un error 500 en vez de simplemente devolver la que el otro pedido ya creó. **Fix:** [FacturaService.crearFactura](../PayX-backend/src/main/java/com/payx/backend/service/FacturaService.java) ahora hace `save()` + `flush()` (fuerza el INSERT en el momento, en vez de dejarlo pendiente hasta el commit) dentro de un try/catch: si choca contra la constraint, recupera la fila que el otro pedido ya insertó en vez de fallar. Mismo problema y mismo fix aplicado a [TarjetaService.crearTarjetaParaUsuario](../PayX-backend/src/main/java/com/payx/backend/service/TarjetaService.java) (se llama desde `obtenerPerfil()`, pedido en casi cada pantalla — mismo riesgo, ahora con la misma protección). Confirmado con tests que simulan el choque (`DataIntegrityViolationException` en el flush) y verifican que se recupera la fila ganadora en vez de propagar el error.
+**1. Condición de carrera real en `FacturaService` — la más seria.** *[CORREGIDO: el arreglo descrito acá resultó no funcionar en Postgres real y se rehízo; ver "Testing exhaustivo" más abajo.]* `listarServiciosConFacturaActual` crea, en loop, la factura del período actual de cada uno de los 6 servicios si todavía no existía, sin ningún lock. Ese endpoint (`GET /api/facturas`) se pide en cada carga de la página de Servicios, y en desarrollo **React StrictMode duplica el efecto que lo dispara** — es decir, dos pedidos casi simultáneos son el caso normal, no uno raro. Si los dos "no encuentran" la factura de un servicio y los dos intentan crearla, la constraint `UNIQUE (usuario_id, servicio_codigo, periodo)` frena el duplicado en la base, pero sin manejarlo esa excepción se hubiera visto como un error 500 en vez de simplemente devolver la que el otro pedido ya creó. **Fix:** [FacturaService.crearFactura](../PayX-backend/src/main/java/com/payx/backend/service/FacturaService.java) ahora hace `save()` + `flush()` (fuerza el INSERT en el momento, en vez de dejarlo pendiente hasta el commit) dentro de un try/catch: si choca contra la constraint, recupera la fila que el otro pedido ya insertó en vez de fallar. Mismo problema y mismo fix aplicado a [TarjetaService.crearTarjetaParaUsuario](../PayX-backend/src/main/java/com/payx/backend/service/TarjetaService.java) (se llama desde `obtenerPerfil()`, pedido en casi cada pantalla — mismo riesgo, ahora con la misma protección). Confirmado con tests que simulan el choque (`DataIntegrityViolationException` en el flush) y verifican que se recupera la fila ganadora en vez de propagar el error.
 
 **2. Serie diaria rota con una ventana de días muy larga.** [EstadisticaService](../PayX-backend/src/main/java/com/payx/backend/service/EstadisticaService.java) arma un punto por cada día del período pedido, pero tenía un tope interno de 365 puntos sin coordinarlo con el cálculo de fechas: pedir `dias=400` armaba una serie que arrancaba 400 días atrás pero se cortaba a los 365 puntos — **faltando justo los días más recientes** (los más importantes) en vez de los más viejos. El frontend nunca pide más de 90 días, pero la API es la API. **Fix:** si `dias` supera el máximo de la serie, se sigue calculando bien el total y las categorías, pero la serie diaria queda vacía (igual que "todo el tiempo") en vez de devolver una engañosa.
 
@@ -834,6 +834,257 @@ Pedido explícito: buscar todo lo que pudiera romperse en lo implementado ese d�
 
 **Tests nuevos:** 2 en `FacturaServiceTest` (la carrera de creación, y ya eran 11 → 12), 1 en `TarjetaServiceTest` (8), 1 en `EstadisticaServiceTest` (14), 3 en `RateLimitFilterTest` (13). **148/148 tests del backend pasan.** Frontend: `npx vite build` y `npx eslint` sin errores nuevos (persisten 2 warnings pre-existentes de antes de esta sesión, en `Home.jsx` y `AdminPanel.jsx`, no relacionados con estas features).
 
-Limitación reconocida: el fix de la condición de carrera se probó a nivel unitario (simulando la excepción del `flush`), no contra una base Postgres real con dos pedidos genuinamente concurrentes — el comportamiento exacto de Hibernate ante un `flush` fallido dentro de una transacción con más operaciones pendientes después (el loop de las otras 5 facturas) no se pudo verificar en este entorno. Es una mejora real sobre no tener ninguna protección, pero no se puede afirmar con 100% de certeza que cubre absolutamente todos los timings posibles.
+*[Esta limitación se confirmó como un bug real y se corrigió; ver "Testing exhaustivo".]* Limitación reconocida: el fix de la condición de carrera se probó a nivel unitario (simulando la excepción del `flush`), no contra una base Postgres real con dos pedidos genuinamente concurrentes — el comportamiento exacto de Hibernate ante un `flush` fallido dentro de una transacción con más operaciones pendientes después (el loop de las otras 5 facturas) no se pudo verificar en este entorno. Es una mejora real sobre no tener ninguna protección, pero no se puede afirmar con 100% de certeza que cubre absolutamente todos los timings posibles.
+
+---
+
+### Estadísticas: pago de servicios, rediseño animado y filtro por fecha en Movimientos
+
+**Pago de servicios dentro de las estadísticas.** [EstadisticaService](../PayX-backend/src/main/java/com/payx/backend/service/EstadisticaService.java) ahora también suma las facturas de servicios como una quinta categoría (`SERVICIOS`, "Pago de servicios"). Solo cuentan las facturas **PAGADAS**, ubicadas por su `fechaPago` (no por el vencimiento): una factura pendiente todavía no es plata que salió, y una que venció en enero pero se pagó hace 40 días no debe caer en "los últimos 30 días". Se reutiliza `FacturaService.listarMisFacturas`, igual que el resto de las categorías reutilizan el `listarMis...` de su servicio.
+
+**Comparación con el período anterior.** La respuesta suma dos campos: `totalPeriodoAnterior` (lo gastado en la ventana inmediatamente anterior, de igual largo — los 30 días previos a los últimos 30, por ejemplo; `null` en "Todo", que no tiene con qué compararse) y `cantidadOperaciones`. Se resuelve trayendo una ventana el doble de larga y repartiendo cada gasto a un lado u otro del corte, sin una segunda pasada por los servicios.
+
+**Rediseño de [Estadisticas.jsx](src/pages/Estadisticas.jsx)** (todo hecho a mano, sin librerías, y con `prefers-reduced-motion` respetado en cada CSS):
+- Resumen principal con el total que "corre" hasta su valor (reutiliza `useValorAnimado`), resplandor que flota lento, chip de variación vs. el período anterior (más gasto en naranja, menos en verde) y un sparkline (gasto acumulado día a día, no el diario: con pocos días con gasto la serie diaria quedaba como una línea plana con un solo pico) cuya línea se dibuja sola.
+- Tarjetas de datos: operaciones, promedio diario, día de mayor gasto y categoría principal (se calculan en el front con lo que ya manda el backend).
+- Selector de período con pastilla que se desliza; al cambiar de período el contenido queda atenuado (no se reemplaza por un cartel) y el total, la dona y las barras se animan hacia los valores nuevos. Esqueleto con brillo en la primera carga.
+- [Dona](src/components/EstadisticaDonut.jsx): los tramos "crecen" al aparecer y se animan al cambiar de período (se dibujan todas las categorías, las de gasto cero con largo 0, para que no aparezcan/desaparezcan de golpe); al pasar el mouse (o tocar) una categoría se resalta el tramo, se atenúa el resto y el centro muestra su monto y porcentaje.
+- [Barras](src/components/EstadisticaBarras.jsx): crecen escalonadas, con líneas guía y eje de valores, la barra del pico resaltada, línea punteada del promedio y tooltip propio (anclado al costado cerca de los bordes para que no se corte). Los días sin gasto se dibujan como un tramo tenue en vez de desaparecer.
+- Colores por categoría movidos a [estadisticasTemas.js](src/utils/estadisticasTemas.js).
+- Se movió el `setCargando(true)`/`setError('')` del `useEffect` al handler del selector (la regla `react-hooks/set-state-in-effect` lo marcaba).
+
+**Filtro por fecha en [Movimientos.jsx](src/pages/Movimientos.jsx).** Atajos (Todo, Hoy, 7 días, 30 días, Este mes) más dos campos Desde/Hasta; el atajo que coincide con el rango cargado se marca solo. Es un filtro en el cliente sobre el feed ya armado (`filtrarPorFecha` en [actividad.js](src/utils/actividad.js)), con ambos extremos incluidos. Decisiones:
+- El "día" de cada movimiento es el día **local**, no el de UTC: una compra a las 23:30 en Argentina ya es del día siguiente en UTC y se hubiera colado en el filtro equivocado. Las fechas sin hora (vencimiento de plazo fijo) se usan tal cual. Se probó con node en zona horaria de Buenos Aires.
+- "Este mes"/"7 días"/"30 días" usan la misma convención que las estadísticas (7 días = hoy y los 6 anteriores).
+- Rango invertido (Desde > Hasta): mensaje de error en vez de una lista vacía sin explicación; rango sin resultados: mensaje con botón para volver a ver todo; con filtro activo se muestra "X de Y movimientos".
+
+**Tests:** 6 nuevos en `EstadisticaServiceTest` (factura pagada/pendiente/fuera de ventana por fecha de pago, período anterior, "todo" sin período anterior, conteo de operaciones); el de las categorías pasó de 4 a 5. Suite del backend completa en verde; frontend con `npx eslint` limpio en los archivos tocados y `npx vite build` OK. Sin probar en un navegador real (no hay uno disponible en este entorno): el aspecto y las animaciones están pendientes de revisión visual.
+
+Ajuste posterior: en "Todo" la serie diaria (barras y sparkline) ahora arranca en el día del primer gasto y llega hasta hoy; solo queda vacía si no hay gastos o si ese historial supera 365 días. Antes quedaba siempre vacía y los gráficos desaparecían.
+
+Nota: los pagos de servicios entran en las estadísticas pero todavía no aparecen en el listado de Movimientos (que no los incluía antes tampoco), así que un gasto de "Pago de servicios" no se puede rastrear ahí por fecha.
+
+---
+
+### Panel de admin: foto de perfil y lista de usuarios para muchos usuarios
+
+**Foto de perfil.** La lista mostraba siempre la inicial del nombre porque `UsuarioAdminResponse` nunca traía `fotoPerfilUrl` (el campo existía en la entidad, no en el DTO del admin). Ahora el DTO la incluye y [AdminAvatar](src/components/AdminAvatar.jsx) muestra la foto; sin foto, o si la imagen falla al cargar, cae a la inicial. Como las fotos viven en Cloudinary (400x400), en la lista se pide una **miniatura** de 96x96 recortada a la cara (`c_fill,g_face,w_96,h_96,f_auto,q_auto`) en vez de bajar cada una a tamaño completo; si la miniatura fallara, se prueba la URL original antes de rendirse.
+
+**Lista de usuarios escalable.** Antes `GET /api/admin/usuarios` devolvía **toda la tabla** en cada carga (y `/usuarios/buscar` filtraba sobre todo), y la auditoría igual, además con 2 `findById` por cada log (N+1). Ahora:
+- `GET /api/admin/usuarios?pagina&tamanio&termino&rol&estado&orden` devuelve una página (`PaginaResponse`: contenido, pagina, tamanio, totalElementos, totalPaginas). Búsqueda, filtros y orden se resuelven en la base con `Specification` (los filtros vacíos simplemente no se agregan al WHERE; evita el problema de `:param IS NULL` con Postgres). `/usuarios/buscar` se eliminó: era un caso particular de lo mismo.
+- `tamanio` se acota a 100 (default 20) y `pagina` negativa se trata como 0: un cliente no puede pedir un millón de filas de una vez. El orden siempre lleva el `id` como desempate final, si no, usuarios con el mismo valor de orden (registrados en el mismo instante) podían repetirse o saltearse entre páginas.
+- Los comodines de la búsqueda (`%`, `_`, `\`) se escapan: buscar "50%" o "a_b" los busca literalmente en vez de matchear cualquier cosa. Rol/estado inválidos devuelven 400 con mensaje en vez de una lista vacía sin explicación.
+- `GET /api/admin/auditoria?pagina&tamanio` también paginado, y los emails de toda la página se resuelven con **un** `findAllById` (antes 2 queries por registro).
+- Frontend ([AdminPanel.jsx](src/pages/AdminPanel.jsx)): búsqueda con debounce de 350 ms (no se le pega al backend en cada tecla), filtros por rol y estado, orden, selector de filas por página (10/20/50/100), paginador con ventana de números que aguanta decenas de miles de páginas ([AdminPaginacion](src/components/AdminPaginacion.jsx), [paginacion.js](src/utils/paginacion.js)), esqueleto en la primera carga, y la página anterior queda atenuada mientras llega la nueva (no "salta"). Las acciones (rol, baja, reactivar) recargan la página actual sin perder filtros ni posición, deshabilitan sus controles mientras corren, y si se vacía la última página vuelve a la anterior. Respuestas desordenadas se ignoran (mismo patrón `cancelado` que en el resto de la app).
+
+**Verificación.** Tests unitarios nuevos (`AdminServiceTest`, 17): permisos, acotado de tamaño/página, orden con desempate, filtros inválidos, escape de comodines, auditoría con una sola consulta. El armado real del `WHERE` se verificó con un test temporal de solo lectura contra la base de desarrollo (ya borrado): búsqueda sin distinguir mayúsculas, `%` y `_` literales, filtros, los tres órdenes recorriendo cada usuario exactamente una vez, página fuera de rango vacía, auditoría. **Limitación:** esa base tiene solo 9 usuarios, así que la *corrección* está verificada pero el *rendimiento* con cientos de miles de filas no se pudo medir.
+
+**Pendiente de correr a mano (opcional pero recomendado con muchos usuarios).** La búsqueda es `LIKE '%texto%'` sobre `lower(...)`, que un índice común no puede usar (recorre la tabla). Con `ddl-auto=validate` los índices no se validan, así que se puede aplicar sin tocar el código:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_usuarios_nombre_trgm   ON usuarios USING gin (lower(nombre_completo) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_usuarios_email_trgm    ON usuarios USING gin (lower(email) gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_usuarios_username_trgm ON usuarios USING gin (lower(nombre_usuario) gin_trgm_ops);
+-- listado por defecto (mas recientes primero) y paginacion estable
+CREATE INDEX IF NOT EXISTS idx_usuarios_fecha_registro ON usuarios (fecha_registro DESC, id);
+CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria (fecha DESC, id);
+```
+
+Sin probar en un navegador real; suite del backend completa en verde (174 tests).
+
+---
+
+### Panel de admin: dashboard de métricas, monitor de transacciones y alertas
+
+Tres pestañas nuevas en el panel de admin (quedan por hacer: ficha de usuario, configuración de tasas/límites, mensajes masivos y exportar a CSV). Ninguna necesita migración: no hay tablas ni columnas nuevas.
+
+**Base común.** `AdminValidador` (un solo lugar para "esto lo hace un ADMIN", ahora usado por todos los servicios del panel, incluido `AdminService`), `AdminConsulta` (tope de 100 filas por pedido, escape de comodines de `LIKE`, largo máximo de búsqueda) y `UsuarioResumenResponse`/`PaginaResponse`. Los DTOs nuevos son `record`s.
+
+**1. Dashboard de métricas** — `GET /api/admin/metricas?dias=30` ([AdminMetricasService](../PayX-backend/src/main/java/com/payx/backend/service/AdminMetricasService.java), [AdminMetricas.jsx](src/components/AdminMetricas.jsx)).
+- Usuarios (total/activos/inactivos, nuevos vs. período anterior), volumen operado y cantidad de operaciones (con variación vs. el período anterior de igual largo), transferencias pendientes ahora, y "plata en la plataforma" (pesos y dólares en cuentas, cajas de ahorro, plazos fijos activos). Gráficos: volumen por día, operaciones por tipo (dona) y usuarios nuevos por día, reutilizando `EstadisticaBarras`/`EstadisticaDonut` (que ahora aceptan formato y textos por parámetro; sus valores por defecto no cambiaron).
+- La agregación la hace la base con **una sola consulta `UNION ALL`** sobre transferencias, cambios, plazos fijos y facturas (`AdminReporteRepository`), agrupada por día y tipo, que cubre el período actual y el anterior juntos; el servicio solo reparte las filas por día calendario y rellena con ceros. Nada de traer tablas a memoria.
+- "Volumen" es siempre en **pesos**: los cambios de dólares/cripto cuentan por su parte en pesos y las transferencias solo si fueron en pesos (sumar pesos con dólares o bitcoins no tiene sentido). Solo cuentan transferencias COMPLETADAS y facturas PAGADAS. Los días son días calendario en la zona horaria de Argentina.
+- Trampa evitada: en Postgres, repetir `AT TIME ZONE :zona` en el `SELECT` y el `GROUP BY` genera dos parámetros distintos y falla ("debe aparecer en GROUP BY"); se agrupa por posición (`GROUP BY 1, 2`).
+
+**2. Monitor de transacciones** — `GET /api/admin/transacciones?pagina&tamanio&tipo&estado&desde&hasta&termino&usuarioId` ([AdminTransaccionService](../PayX-backend/src/main/java/com/payx/backend/service/AdminTransaccionService.java), [AdminTransacciones.jsx](src/components/AdminTransacciones.jsx)).
+- *[REDISEÑADO tras probarlo con 2,8 millones de filas (16 a 56 s): ver "Testing exhaustivo".]* Un solo listado de todos los usuarios que une (en SQL) transferencias, cambios de dólares, cripto, plazos fijos y servicios pagados, con la unión, los filtros, el orden (más reciente primero, `id` como desempate estable) y la paginación resueltos por la base. Búsqueda por nombre/email/usuario de **cualquiera de las partes**; filtro por usuario (como origen o contraparte); rango de fechas con ambos días incluidos (interpretados en la zona de la app). Solo se agrega al `WHERE` lo que el filtro trae (`(:p IS NULL OR ...)` falla en Postgres con parámetros null). Las facturas pendientes no aparecen: todavía no son un movimiento de plata.
+- Tipos y estados inválidos, rango invertido o fechas absurdas (año 1900 / 999999999) devuelven 400 con mensaje; una página más allá del final es una página vacía, no un error. Clic en un usuario de la fila filtra por él.
+
+**3. Alertas de actividad sospechosa** — `GET /api/admin/alertas?horas=24` ([AdminAlertaService](../PayX-backend/src/main/java/com/payx/backend/service/AdminAlertaService.java), [AdminAlertas.jsx](src/components/AdminAlertas.jsx)).
+- Cinco reglas fijas sobre la actividad de las últimas 1–168 horas: **monto alto** ($ 500.000 / US$ 1.000; el doble es severidad alta), **ráfaga** (5+ transferencias de la misma cuenta en 10 min; 10+ es alta), **cuenta nueva** (menos de 7 días y ya transfirió $ 200.000 completados), **saldo negativo** (nunca debería pasar: indica un bug o doble gasto) y **nuevo administrador** (auditoría de cambios de rol a ADMIN). Los umbrales son constantes de la clase (cambiarlos es decisión de negocio) y la respuesta trae la descripción de las reglas armada con esas mismas constantes, así lo que ve el admin en "Qué se vigila" no puede quedar desactualizado.
+- **Decisión de diseño: se calculan en el momento, no hay tabla de alertas.** Ventaja: nada que migrar ni que se desincronice. Costo: una alerta desaparece sola cuando el hecho sale de la ventana, y **todavía no se pueden marcar como "revisadas"** (eso requeriría una tabla). Se analizan como máximo las 5.000 transferencias más recientes de la ventana; si hay más, la respuesta trae `truncado: true` y el panel avisa.
+- Acciones desde cada alerta: "Ver movimientos" (salta al monitor ya filtrado por ese usuario), "Ver usuario" (salta a Usuarios buscándolo) y "Dar de baja" (mismo modal de confirmación de siempre). La pestaña muestra un contador (rojo si hay altas) sin haberla abierto: por eso las alertas las pide `AdminPanel` y no la pestaña. Las cripto no alertan por monto (las cantidades no son comparables entre monedas). No hay reglas de intentos fallidos de login: hoy no se guardan en ningún lado.
+
+**Verificación.**
+- Backend: 57 tests nuevos para estos tres módulos (`AdminAlertaServiceTest` 26, `AdminTransaccionServiceTest` 20, `AdminMetricasServiceTest` 11; se suman a los 17 de `AdminService`), con énfasis en los casos que **no** deben alertar (justo por debajo del umbral, ráfagas repartidas en una hora, cuentas viejas, pendientes, otros roles, cripto). Se comprobó con una prueba de mutación (romper a propósito el umbral y la ventana de la ráfaga) que los tests fallan donde deben. Suite completa: **231 tests, 0 fallas.**
+- Consultas SQL nativas: los unit tests no las cubren, así que se validaron con un test temporal de **solo lectura** contra la base de desarrollo (ya borrado): la suma por tipo coincide con la serie diaria y con el total del monitor, recorrer todas las páginas devuelve cada transacción exactamente una vez, los acentos se codifican bien, y detectó una ráfaga real en los datos de prueba.
+- HTTP de punta a punta: otro test temporal llamó a los endpoints reales con un JWT de admin y de usuario común: 403 sin permisos, 400 con mensajes claros, forma del JSON (fechas, decimales, nulos) y que `usuarios`/`auditoria` siguen andando.
+- Frontend: `npx eslint` limpio en todo lo tocado (queda 1 error preexistente en `Home.jsx`, sin relación) y `npx vite build` OK. Además se renderizó **el panel completo en jsdom con respuestas simuladas** con la forma real del backend (43 chequeos: métricas con y sin datos, alertas con/sin usuario y con plurales, monitor con los 5 tipos, filtros, rango invertido, error del backend, paginación, saltos entre pestañas): todo OK y **0 errores de React en consola**. Sigue sin probarse en un navegador real: falta la revisión visual del diseño.
+
+**Límites conocidos.** La base de desarrollo tiene 9 usuarios y 41 transacciones: la *corrección* está verificada, el *rendimiento* con cientos de miles de filas no se pudo medir. El `LIKE '%texto%'` del buscador no usa índices comunes (ver los índices `pg_trgm` propuestos en la sección anterior); para el monitor y las métricas convienen además índices por fecha:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_transacciones_fecha   ON transacciones (fecha_creacion DESC);
+CREATE INDEX IF NOT EXISTS idx_operaciones_cambio_fecha ON operaciones_cambio (fecha DESC);
+CREATE INDEX IF NOT EXISTS idx_plazo_fijo_fecha_creacion ON plazo_fijo (fecha_creacion DESC);
+CREATE INDEX IF NOT EXISTS idx_facturas_fecha_pago   ON facturas (fecha_pago DESC) WHERE estado = 'PAGADA';
+CREATE INDEX IF NOT EXISTS idx_usuarios_fecha_registro ON usuarios (fecha_registro DESC);
+```
+
+---
+
+### Testing exhaustivo: carga masiva, fechas y husos horarios, concurrencia
+
+Pedido: probar todo, ver qué pasa con muchas transacciones y muchos usuarios, y analizar los filtros de fecha (horas, días, husos). **Se encontraron y arreglaron bugs reales, dos de ellos de dinero.** Los tests con mocks no podían verlos: hizo falta una base Postgres de verdad.
+
+**Cómo se probó.** Un Postgres 16 local **descartable** (binarios portables, ya detenido y con los datos borrados), en vez de la base de Supabase, con las mismas restricciones e índices que la real (se verificaron leyendo sus metadatos). Las pruebas tenían una guarda que abortaba si la URL no era `localhost`. Datos: 200.000 usuarios con cuenta, 2 millones de transferencias, 500.000 cambios de dólares/cripto, 100.000 plazos fijos, 300.000 facturas, 50.000 registros de auditoría, y un usuario con **100.021 transferencias y 78.657 contrapartes distintas**. Además: toda la suite del backend bajo cuatro husos horarios de la JVM (UTC, Tokio, Los Ángeles y Kiritimati, +14:00, donde ya es el día siguiente), las funciones de fecha del frontend bajo nueve husos, y render de las pantallas con jsdom.
+
+**Bugs encontrados y arreglados, de mayor a menor gravedad**
+
+1. **Los bloqueos pesimistas de dinero no protegían (17 usos).** Todos los servicios que mueven plata cargan la cuenta *sin* bloqueo y después piden `findByIdConLock`, pero Hibernate devolvía la copia vieja que ya tenía en memoria en vez de releer la fila. Resultado con 12 transferencias simultáneas de $600 desde una cuenta con $1.000: **9 "éxitos"** en vez de 1; 15 depósitos a una caja terminaron con $400 en la caja y 15 éxitos; 5 plazos fijos de $1.000 dejaron el saldo en $99.000 en vez de $95.000 (**$4.000 creados de la nada**); 8 pagos simultáneos de la misma factura devolvieron 8 éxitos y 8 notificaciones. **Arreglo:** `findByIdConLock` ahora es un método de un repositorio base común ([RepositorioConBloqueoImpl](../PayX-backend/src/main/java/com/payx/backend/repository/RepositorioConBloqueoImpl.java), activado en `PayxBackendApplication`) que hace `refresh` con `PESSIMISTIC_WRITE`: relee la fila con `SELECT … FOR UPDATE` y pisa el estado viejo. Los cinco repositorios (cuentas, cajas, facturas, transferencias, plazos fijos) lo usan; los servicios no cambiaron. Verificado con 8 escenarios en paralelo: doble gasto → 1 éxito y 11 rechazos; depósitos → exactamente 10 y la plata conservada; plazos → saldo $95.000; doble pago → 1 cobro; transferencias cruzadas sin deadlock.
+2. **El arreglo de la carrera de creación de facturas/tarjeta (auditoría anterior) no funcionaba.** Al chocar contra la restricción `UNIQUE`, Postgres deja la transacción abortada ("current transaction is aborted") y el `catch` con re-consulta fallaba igual: 2 de 8 pedidos simultáneos fallaban en facturas y 5 de 8 en tarjeta. Ahora se inserta con `INSERT … ON CONFLICT DO NOTHING` y se relee (`insertarSiNoExiste` en los repositorios). Se confirmó en la base real que las restricciones `UNIQUE` en las que se apoya existen. Sin errores y sin duplicados con 8 pedidos en paralelo.
+3. **El monitor de transacciones tardaba 16 a 56 segundos con 2,8 millones de filas.** El plan mostraba que Postgres unía todas las filas con cuentas y usuarios *antes* de ordenar, así que ningún índice servía. Se rediseñó ([AdminReporteRepository](../PayX-backend/src/main/java/com/payx/backend/repository/AdminReporteRepository.java)): cada tabla aporta solo sus N filas más recientes, se mezclan y se toma la página; los nombres de usuarios se buscan después, solo para las ~20 filas de la página (2 consultas); el total se cuenta **con tope de 10.000** ("más de 10.000" en la interfaz) en vez de contar millones de filas en cada clic; y el filtro por usuario pasa la cuenta como valor concreto (2,2 s → 0,2 s). Los conteos por tipo, estado y fechas se cruzaron contra consultas SQL independientes: coinciden exactamente.
+4. **El historial de un usuario con más de 65.535 contrapartes distintas fallaba** ("PreparedStatement can have at most 65.535 parameters") en Home, Movimientos y Estadísticas. Las consultas `IN (...)` van ahora en lotes de 5.000 (`Lotes`).
+5. **Un usuario con 100.000 transferencias**: cada carga bajaba **28,6 MB** y tardaba 7,7 s; Estadísticas tardaba 6,7 s por período porque cargaba todo el historial solo para sumar. Ahora el listado devuelve como máximo las **2.000 más recientes** (con aviso y "Mostrar más" de a 100 en Movimientos; 0,6 MB) y Estadísticas consulta directo a la base solo los envíos en pesos del período (0,4–0,9 s). Los totales de transferencias coinciden con SQL independiente en los cinco períodos. Movimientos además deja de refrescar cada 5 s cuando la pestaña está oculta.
+6. **Estadísticas: la ventana era "hace N×24 horas" pero la serie era por días calendario.** Un gasto del día anterior al período pero a menos de N×24 h entraba en el total y agregaba un punto suelto (y desordenado) al final del gráfico. Ahora el período son días calendario en todo, coherente con el rótulo "del 9 al 15 de enero". Verificado con un test que falla con la lógica anterior.
+7. **`NotificacionService`** escribía la hora dentro del texto de las notificaciones con el huso del servidor: en un hosting en UTC un inicio de sesión a las 23:30 de Argentina decía "a las 02:30". Ahora usa el reloj de Argentina.
+8. **Frontend, fechas:** la fecha de pago de una factura se recortaba con `split('T')` (en un servidor en UTC, un pago a las 23:30 del 17 se mostraba como 18), y los vencimientos de plazo fijo (un día sin hora) se ordenaban como medianoche UTC, o sea las 21:00 del día anterior, debajo de transferencias del día anterior a la noche. Nuevo [fechas.js](src/utils/fechas.js) y `instanteDe`; verificado en nueve husos.
+9. **Alertas:** con cientos de alertas graves el resumen mostraba los totales reales pero la lista solo trae las 200 más importantes, sin avisar. Ahora se avisa.
+
+**Rendimiento medido** (200k usuarios, 2,8M transacciones)
+
+| | antes | rediseño, sin índices nuevos (como tu base hoy) | con los índices de abajo |
+|---|---|---|---|
+| Monitor, primera página | 16,5 s | 1,1–1,6 s | 37–56 ms |
+| Monitor, última página | 56 s | 1,9 s | 0,1 s |
+| Monitor, buscar "perez" | 24 s | 5,1 s | 0,7–1,7 s |
+| Monitor, filtro por fecha/tipo | 2–12 s | 0,3–1,1 s | ~20 ms |
+| Lista de usuarios, buscar texto | 0,3 s | 0,3 s | 20–30 ms |
+| Métricas (7 a 365 días) | 1,7–3 s | 2,6–4,5 s | 1,8–3,0 s |
+| Alertas | 0,3–0,7 s | 0,8–1,1 s | 0,3–0,7 s |
+
+Las métricas agregan cientos de miles de filas del período (en estos datos, unas 25.000 operaciones por día): el tiempo depende del volumen y no de un índice.
+
+**Lo que se revisó y estaba bien:** paginación estable sin duplicar ni perder filas (se recorrió un conjunto completo), escape de comodines de la búsqueda, los tres órdenes de usuarios, filtros de fecha en los bordes exactos (00:00:00, 23:59:59.999, fin de mes, fin de año, 29 de febrero, rangos de un día y con un solo extremo), el cálculo de "vencida" el mismo día del vencimiento, la idempotencia de la acreditación de plazos fijos en paralelo, y que el scheduler use el reloj de Argentina. Suite completa del backend (**259 tests**) en verde bajo los cuatro husos de JVM, incluido el arranque de la aplicación contra el esquema real.
+
+**Límites conocidos**
+- El monitor cuenta hasta 10.000: pasado eso hay que acotar por fecha, tipo, estado o usuario. El historial de un usuario muestra sus últimas 2.000 transferencias; lo correcto a largo plazo es paginación y filtros en el servidor también ahí.
+- Un usuario con 100.000 transferencias todavía tarda ~2,8 s en cargar su listado (falta un índice compuesto por cuenta y fecha; ver abajo).
+- El admin filtra por días en horario de Argentina pero ve las horas en el huso de su navegador; no hay problema si está en Argentina.
+- Si el volumen crece mucho más, las métricas necesitarían una tabla de resumen diario.
+- Las pruebas de carga y de concurrencia contra un Postgres temporal **no quedaron en el repositorio** (los tests unitarios nuevos sí); se pueden recrear.
+
+**SQL a correr a mano en Supabase (probado; reemplaza las listas de las secciones anteriores).** Ninguno de estos índices existe hoy en tu base, tampoco `pg_trgm`.
+
+El script está en un archivo aparte, **sin marcas de markdown**: [`PayX-backend/sql/indices-panel-admin.sql`](../PayX-backend/sql/indices-panel-admin.sql). Abrirlo, copiar todo el contenido y pegarlo en el SQL Editor de Supabase (antes estaba en un bloque de código de este documento y al copiarlo se colaba la línea de cierre "```", que da error de sintaxis). Se probó contra un Postgres local: se puede correr más de una vez, y si alguna caja de ahorro tuviera saldo negativo la restricción se agrega igual (rige para escrituras nuevas) y avisa en vez de fallar. Para comprobar que quedó: `SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx\_%' ORDER BY 1;` y buscar los 11 índices del archivo (puede haber otros `idx_` de antes).
+
+
+---
+
+### Panel de admin: ficha de usuario
+
+Cuarto módulo del panel: un panel lateral con todo lo que hace falta saber de una persona, en un solo lugar, para no saltar entre cinco pestañas al revisar una alerta o atender un reclamo.
+
+**Qué muestra y cómo se abre.** Se abre desde el nombre del usuario o el botón "Ver ficha" de la lista, desde "Ver ficha" en una alerta y desde el icono junto al nombre en el monitor de transacciones. (Antes "Ver usuario" en una alerta saltaba a la lista buscando por email; ahora abre la ficha, que sirve para lo mismo y muestra mucho más.) Secciones:
+- **Cabecera:** foto, nombre, usuario, email, rol, estado, email verificado, DNI, teléfono y antigüedad.
+- **Acciones:** cambiar rol, dar de baja (con confirmación en dos pasos dentro de la ficha) y reactivar. En la propia cuenta no se ofrecen (el backend igual las rechaza).
+- **Cuenta y saldos:** pesos y dólares siempre, cripto solo si hay saldo, CVU y alias con botón de copiar. Un saldo negativo se marca en rojo.
+- **Productos:** tarjeta virtual (solo `•••• 1234` y vencimiento), cajas de ahorro con barra de progreso hacia su meta, plazos fijos (activos, total y plata inmovilizada).
+- **Actividad:** transferencias enviadas y recibidas, pesos enviados, cambios de moneda y servicios pagados.
+- **Alertas de los últimos 7 días** (con el mismo aspecto que en su pestaña), **últimas 10 transacciones** con "Ver todas" (lleva al monitor filtrado por ese usuario) y **acciones de administradores sobre la cuenta** (cambios de rol, bajas, reactivaciones).
+
+**Decisiones**
+- **Un solo pedido** (`GET /api/admin/usuarios/{id}/ficha`, [AdminFichaService](../PayX-backend/src/main/java/com/payx/backend/service/AdminFichaService.java)) en una transacción de solo lectura. Todo está acotado: los totales son agregados de la base (nunca se cargan las transferencias para contarlas) y las listas tienen tope (10 transacciones, 10 acciones de admin, 20 alertas, 20 cajas).
+- **Alertas de un usuario = las alertas globales filtradas por ese usuario, pero sin calcular las globales.** `AdminAlertaService.alertasDe` aplica las mismas reglas mirando solo la cuenta del usuario. Alcanza con las transferencias que *salieron* de su cuenta porque todas las reglas se atribuyen a quien envía. Además no le afectan los topes de la vista global (5.000 transferencias analizadas, 200 alertas). Un test compara, para varias personas y las cinco reglas, ambos caminos: mismas alertas y mismo orden.
+- **La tarjeta nunca sale completa:** solo terminación y vencimiento; el número y el CVV no existen en la respuesta. Hay tests que serializan la ficha a JSON y verifican que no aparezcan ni el número, ni el CVV, ni la contraseña.
+- **El "ahora" es el del servidor** (inicio de la ventana de alertas + sus horas), no el reloj de la computadora, para la antigüedad y los "hace 2 h".
+- **El vencimiento de la tarjeta es un día** y se lee a mano (`2030-09-01` → `09/30`): con `new Date()` se correría al mes anterior en Argentina.
+- **Refactor para no duplicar:** la tarjeta de alerta ([AdminAlertaItem](src/components/AdminAlertaItem.jsx)), los rótulos de tipo y estado de transacciones ([AdminTransaccionBadges](src/components/AdminTransaccionBadges.jsx), [transaccionesAdmin.js](src/utils/transaccionesAdmin.js)) y `haceCuanto` ahora se comparten entre la pestaña de alertas, el monitor y la ficha. En el backend, `UsuarioAdminResponse.de` y el armado de los emails de auditoría quedaron en un solo lugar.
+- **Accesibilidad:** diálogo modal con nombre, el foco queda atrapado adentro, Escape y clic afuera cierran, se bloquea el scroll de atrás y el foco vuelve al botón que abrió la ficha. Respeta `prefers-reduced-motion`. Una respuesta tardía de un usuario anterior no pisa la ficha nueva.
+
+**Verificación**
+- **Tests unitarios:** 41 nuevos (la suite completa pasó de 259 a **300, todos en verde**, también bajo los husos UTC, Kiritimati y Los Ángeles y con el arranque de la aplicación contra el esquema real). **Prueba de mutación:** se rompieron a propósito 8 reglas (filtro de escalada, saldo negativo, alcance de las transferencias analizadas, número de tarjeta expuesto, tope de alertas, estado de las transferencias contadas, orden del historial, filtro de usuario) y los tests fallaron en las 8.
+- **Postgres real y datos masivos** (descartable, ya borrado; 100.000 usuarios, 1,1 millones de transferencias y un usuario con 100.000): cada dato de la ficha se cruzó contra SQL independiente en **143 usuarios** (aleatorios, sin cuenta, inactivos, con cripto, con alertas y el usuario pesado): saldos, conteos, sumas, cajas, plazos, tarjeta, historial y últimas transacciones, todo coincide. Alertas: 54 alertas globales de 50 usuarios: la ficha de cada uno da exactamente las suyas y otros 300 usuarios sin alertas dan cero; 13 grupos de escenarios armados a propósito disparan exactamente lo esperado. HTTP real: 200 para admin, 403 para un no admin, sin token rechazado, 400 para un usuario inexistente y para un id mal formado. 160 pedidos en paralelo (16 hilos, pool de 10 conexiones): sin errores.
+- **Frontend:** render con jsdom, **55 verificaciones de la ficha** (contenido de cada sección, nulos, acciones, errores, reintento, carrera entre pedidos, teclado, foco, scroll) y **47 de regresión** del panel completo, sin errores de React; 45 pruebas de las funciones puras en **7 husos horarios**; lint sin errores nuevos (queda el de `Home.jsx` línea 289, que ya estaba) y build correcto.
+
+**Rendimiento medido** (100.000 usuarios, 1,1 millones de transferencias):
+
+| | sin los 3 índices nuevos (como la base de hoy) | con los 3 índices |
+|---|---|---|
+| Ficha de un usuario común (mediana / p95) | 193–200 ms / ~245 ms | **27 ms / 35 ms** |
+| Sus últimas transacciones | 101–113 ms | 8–9 ms |
+| Ficha del usuario con 100.000 transferencias | 450–500 ms | (no medido) |
+
+La lentitud sin índices era de la lectura por `usuario_id` de plazos fijos, cambios y cajas (recorrían la tabla entera). Los mismos índices aceleran también el monitor filtrado por usuario y "mis plazos fijos", "mis cambios" y "mis cajas".
+
+**SQL a correr a mano en Supabase:** [`PayX-backend/sql/indices-ficha-usuario.sql`](../PayX-backend/sql/indices-ficha-usuario.sql) (3 índices, se puede correr más de una vez; probado dos veces seguidas). Copiar el archivo entero, sin marcas de markdown. No hay que crear `idx_auditoria_usuario`: ya existe.
+
+**Corrección de lo afirmado antes.** La sección anterior decía que ninguno de los índices de `indices-panel-admin.sql` existía en tu base. Se volvieron a leer los índices reales (solo lectura, 2026-09-19) y **los índices ya están todos**: corriste ese archivo. (La restricción `CHECK` de saldo de `cajas_ahorro` no aparece en esa lectura y no se verificó.)
+
+**Límites y decisiones para confirmar**
+- **El diseño visual quedó sin revisar en un navegador** (no hay uno disponible acá): conviene abrir la ficha en escritorio y en el celular y decir si algo se ve raro.
+- La ficha muestra DNI y teléfono. Ya viajaban en la lista de usuarios (que no los mostraba) y solo los ve un admin; si preferís no mostrarlos es sacar dos líneas.
+- "Actividad" cuenta solo transferencias completadas y "pesos enviados" solo pesos (no dólares ni cripto).
+- Las alertas de la ficha miran la última semana y muestran las 20 más graves (el contador cuenta todas). Con más de 5.000 transferencias enviadas en la semana se analizan las más recientes y la ficha lo avisa.
+- Las pruebas de carga contra el Postgres temporal **no quedaron en el repositorio** (los tests unitarios sí).
+
+---
+
+### Panel de admin: configuración (TNA, montos y límites)
+
+Quinto módulo del panel: una pestaña **Configuración** para ajustar sin tocar código ni redeployar lo que antes estaba escrito en los servicios: la **TNA de cada plazo fijo** (30, 60, 90, 180 y 365 días), el **monto mínimo** de un plazo fijo, el **máximo de plazos fijos activos** por usuario y el **máximo de cajas de ahorro** por usuario. Los valores por defecto son exactamente los de siempre.
+
+**Corrección de la propuesta original:** se habló de configurar "spreads", pero la app no tiene ninguno (las cotizaciones son reales y de un solo precio). No se inventó nada: solo se configura lo que existe.
+
+**Decisiones**
+- **Una tabla nueva, de solo agregar** (`configuracion`, [sql/configuracion.sql](../PayX-backend/sql/configuracion.sql)): cada cambio es una fila y el valor vigente de una clave es su fila más reciente. El historial de quién cambió qué, cuándo y desde qué valor sale gratis de la misma tabla.
+- **Sin entidad JPA** ([ConfiguracionRepositorio](../PayX-backend/src/main/java/com/payx/backend/repository/ConfiguracionRepositorio.java) con `JdbcTemplate`): con `ddl-auto=validate` una entidad cuya tabla todavía no existe impediría arrancar la app. Así **la app arranca y funciona igual sin la tabla**, con los valores de siempre; solo se bloquea el guardado con un mensaje claro. Cuando corras el SQL empieza a aplicarse sola (a los 30 s como mucho, o al instante al abrir la pestaña). La existencia de la tabla se consulta con `to_regclass`, que no falla si no existe: importa porque en Postgres una consulta que falla deja abortada la transacción, y esto se lee desde operaciones de plata.
+- **Validación en el backend** ([ConfiguracionService](../PayX-backend/src/main/java/com/payx/backend/service/ConfiguracionService.java)): rango por valor (TNA 1–200 %, monto 1–1.000.000, máximos 1–50), formato estricto (sin signos, notación científica ni dígitos que no sean 0-9; TNA y monto con hasta 2 decimales, máximos enteros; la coma decimal se acepta). **Se guarda todo o nada**, y lo que no cambió no se guarda. Un valor corrupto en la tabla (alguien lo tocó a mano) **se ignora y se usa el por defecto**: nunca rompe una operación.
+- **Cambiar una TNA no toca los plazos ya constituidos** (cada uno guarda la tasa con la que se hizo). **Bajar un máximo no borra nada**: solo impide crear más.
+- **Los límites que el frontend tenía repetidos a mano** (`MAX_PLAZOS_ACTIVOS = 5` y `MAX_CAJAS = 8`) ahora vienen del backend: los plazos ya los recibían en `/plazos-fijos/tasas` y para las cajas se agregó `GET /api/cajas-ahorro/limite`. Si ese pedido falla no se bloquea el botón (el backend igual lo exige).
+- **La pantalla** valida al escribir, marca lo que se tocó, ofrece "Volver al valor por defecto", pide confirmación mostrando "antes → después" (con el aviso de que rige enseguida) y lista los últimos cambios.
+
+**Verificación**
+- **Tests unitarios:** 71 nuevos (57 del servicio de configuración, con validación parametrizada de valores raros; 9 de plazos fijos y 5 de cajas con configuración cambiada). La suite pasó de 300 a **371, todos en verde**, incluido el arranque de la aplicación contra tu base real, donde todavía no existe la tabla (prueba que arranca sin ella). Los tests que ya existían de plazos y cajas pasaron **sin cambiar sus aserciones**, o sea que los valores por defecto son idénticos a las constantes de antes. **Mutación:** se rompieron a propósito 10 reglas (guardar sin cambios, validar rangos, ignorar valores corruptos, permisos, guardar sin tabla, recordar la tabla, y que plazos y cajas usen la configuración) y los tests fallaron en las 10.
+- **Postgres real** (descartable, ya borrado), 27 verificaciones: sin la tabla todo anda, leer la configuración dentro de una transacción no la aborta, el panel responde con `disponible=false` y guardar da 400; corriendo el `sql/configuracion.sql` de verdad **dos veces** sin errores; el panel detecta la tabla al instante; guardar 4 cambios; un plazo nuevo usa la TNA nueva y **el anterior conserva la suya**; el monto mínimo y los máximos nuevos se exigen; 9 valores inválidos por HTTP dan 400 sin guardar nada; un cambio válido junto a uno inválido no guarda ninguno; un usuario común recibe 403; historial correcto; un valor corrupto y una clave inventada en la tabla no rompen nada; 8 guardados simultáneos de la misma clave sin errores.
+- **Frontend:** render con jsdom, 38 verificaciones (la pestaña completa y los límites en las pantallas de plazos y cajas), 68 de las funciones de validación, y de regresión el panel (47) y la ficha (55), sin errores de React; lint sin errores nuevos (queda el de `Home.jsx` línea 289) y build correcto.
+
+**SQL a correr a mano en Supabase:** [`PayX-backend/sql/configuracion.sql`](../PayX-backend/sql/configuracion.sql) (crea la tabla y 2 índices; se puede correr más de una vez). Copiar el archivo entero. **Hasta que lo corras todo sigue exactamente como antes.**
+
+**Límites**
+- Con dos administradores guardando la misma clave a la vez gana el último; el "valor anterior" del historial es lo que estaba vigente en ese momento.
+- Los umbrales de las alertas (monto alto, ráfaga, cuenta nueva) siguen en el código; se podrían pasar a esta misma tabla.
+- **El diseño visual quedó sin revisar en un navegador.**
+- Las pruebas contra el Postgres temporal no quedaron en el repositorio (los tests unitarios sí).
+
+---
+
+### Panel de admin: exportar a CSV
+
+Sexto módulo del panel: un botón **Exportar CSV** en las pestañas **Usuarios**, **Transacciones**, **Auditoría** y **Alertas**. Cada uno baja un archivo con **lo mismo que muestra la lista, con los mismos filtros** (búsqueda, rol, estado, tipo, fechas, usuario, ventana de alertas…) pero **sin paginar**. No se necesita SQL nuevo. (Los mensajes masivos, que estaban en la propuesta original, se descartaron.)
+
+**Decisiones**
+- **Formato pensado para Excel en Argentina:** separador `;` y coma decimal (con `,` de separador Excel en español mete todo en una sola columna), BOM UTF-8 (para los acentos), fechas `yyyy-MM-dd HH:mm:ss` en la zona de la app (no la del servidor), montos sin separador de miles, sin notación científica y sin ceros de relleno (la base guarda los cambios con 8 decimales: sale `120000,00`, y `0,00123456` en cripto). Las celdas de texto van entre comillas y los saltos de línea/tabuladores se vuelven espacios: **un registro = una línea**.
+- **Inyección de fórmulas:** las descripciones de las transferencias las escribe cualquier usuario, y un texto como `=HYPERLINK(...)` o `+cmd|...` se ejecutaría al abrir el archivo en Excel. Cualquier celda de texto que empiece (aun con espacios delante) con `=`, `+`, `-` o `@` sale con una comilla simple adelante (la mitigación que recomienda OWASP). Los números y las fechas no pasan por ahí. También aplica a nombres y emails de usuarios.
+- **No se exporta nada que el admin no vea ya:** los usuarios salen sin DNI, teléfono ni foto.
+- **Se arma en el backend** ([AdminExportacionService](../PayX-backend/src/main/java/com/payx/backend/service/AdminExportacionService.java), formato en [Csv](../PayX-backend/src/main/java/com/payx/backend/service/Csv.java)) reutilizando los servicios de cada lista: los **permisos, la validación de filtros y las consultas son los mismos** (se refactorizaron para compartirlos, no se copiaron). Un filtro inválido da 400 con su mensaje y un usuario que no es admin 403, igual que la lista.
+- **Tope de 50.000 filas** por archivo: se exportan las más recientes y la respuesta avisa que había más (headers `X-Filas-Exportadas` y `X-Exportacion-Truncada`, expuestos en el CORS). El panel lo dice ("Se descargó … con las 50.000 filas más recientes, pero hay más con estos filtros. Acotá por fecha, tipo, estado o usuario…"). Para saber si hubo más sin contar se pide una fila de más.
+- **Se escribe por tandas, directo a la respuesta.** La primera versión armaba el archivo entero en memoria (las 50.000 respuestas, el texto y sus copias): con **4 exportaciones a la vez se agotó el heap de 512 MB** y el error de memoria salía como un 400. Ahora las filas de las transacciones se leen livianas y los usuarios de cada una se buscan **de a 5.000 filas** mientras se escribe (también evita pasar el máximo de 65.535 parámetros de Postgres, que ya había dado problemas en el historial). Con eso **un pedido de 50.000 filas anda incluso con un heap de 128 MB**. Todo lo que puede fallar por el pedido pasa antes del primer byte, así que los errores siguen saliendo como JSON; un fallo a mitad del archivo corta la descarga (el panel muestra "No se pudo exportar").
+- **Cupo de 2 exportaciones simultáneas** (las demás reciben 429 "Hay otras exportaciones en curso. Probá de nuevo en unos segundos") y **límite de 6 por minuto por ruta y por IP** (el filtro de límite de tasa que ya existía). El archivo lleva `Cache-Control: no-store`: tiene datos personales.
+- **Frontend:** [AdminExportar](src/components/AdminExportar.jsx) (botón + aviso en una región `role="status"`), deshabilitado mientras la lista carga, si no hay resultados o si el rango de fechas está invertido; usa los filtros **ya aplicados** de la lista (no lo que se está tipeando) y frena el doble clic. Con `responseType: 'blob'` hasta el error JSON llega como Blob: [adminService](src/services/adminService.js) lo lee para que las pantallas sigan usando `error.response.data.error`.
+
+**Verificación**
+- **Tests unitarios:** 115 nuevos (54 del formato, 33 de la exportación, 13 del controlador —headers, UTF-8, errores antes de escribir, error a mitad de archivo, cupo sin fugas—, y los de los servicios y el límite de tasa). La suite pasó de 371 a **486, todos en verde**. **Mutación:** se rompieron a propósito 30 reglas (neutralización de fórmulas, comillas, controles, coma decimal, ceros, zona horaria, recorte y aviso del tope, BOM, encabezado, tandas, permisos, filtros, cupo, cabeceras, codificación…) y los tests fallaron en las 30.
+- **Postgres real** (descartable, ya borrado), por HTTP con la cadena de seguridad real: **124 verificaciones**. Sin token o sin ser admin, 403 sin datos; el archivo trae el BOM, `text/csv;charset=UTF-8`, `no-store` y los headers; con el `Accept` que manda axios no hay 406; **26 combinaciones de filtros dan exactamente las mismas transacciones y en el mismo orden que el monitor JSON**, y sin filtros lo mismo que un SQL directo; textos hostiles (fórmulas, comillas, `;`, saltos de línea, emoji) quedan neutralizados sin romper filas; un usuario llamado `=2+2` también; el DNI, el teléfono y el hash no aparecen; CORS (el origen del frontend lee los headers, otro origen recibe 403, el preflight se acepta). **Límites exactos:** con 50.000 usuarios / transacciones / registros de auditoría exactos no avisa truncado; con uno más exporta 50.000, avisa y **deja afuera el más viejo**. Con 50.000 usuarios y 50.000 transacciones entre cuentas todas distintas ninguna quedó sin nombre. Tiempos: 50.000 usuarios 0,7–1,3 s, 50.000 transacciones 2–2,3 s, 50.000 registros de auditoría 1,3 s; las transacciones de un solo usuario sobre esa base, 29 ms; una búsqueda por texto, 165 ms. Ráfaga de 6 pedidos de 50.000 transacciones: 2 exportan y 4 reciben 429, sin errores de memoria, y pasada la ráfaga la siguiente funciona. Los archivos guardados se releyeron con **otro lector de CSV** (`csv-parse`, incluidos los de 50.000 filas): 42 verificaciones, ninguna celda empieza como fórmula ni trae saltos de línea.
+- **Frontend:** render con jsdom, 47 verificaciones de la exportación (las cuatro pestañas, filtros que viajan tal cual, sin página ni tamaño, doble clic, truncado, errores 403/429/500 con el cuerpo como Blob, cambiar de pestaña a mitad de una exportación) y de regresión el panel (47), la ficha (55) y la configuración (38), sin errores de React; 14 pruebas del nombre del archivo y los avisos en 5 husos horarios; lint sin errores nuevos (queda el de `Home.jsx` línea 289) y build correcto.
+
+**Límites**
+- **No queda registro de auditoría de las exportaciones** (la tabla `auditoria` exige un usuario afectado): sería la mejora natural, sobre todo para la de usuarios.
+- Con otra configuración regional de Excel (coma como separador de lista) las columnas se juntan: hay que abrirlo con *Datos → Desde texto/CSV*, o cambiar el separador.
+- Las alertas exportan lo mismo que muestra el panel (hasta 200, las más graves y recientes).
+- La descarga no muestra progreso: el archivo se genera y llega de una vez (2–3 s en el caso más grande).
+- **El diseño visual quedó sin revisar en un navegador**, y la descarga real (el clic que guarda el archivo) se probó con el navegador simulado, no con uno de verdad.
+- Las pruebas contra el Postgres temporal no quedaron en el repositorio (los tests unitarios sí).
 
 ---

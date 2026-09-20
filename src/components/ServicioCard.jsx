@@ -1,14 +1,10 @@
 import { createElement } from 'react';
 import { TEMA_POR_SERVICIO, TEMA_DEFAULT } from '../utils/serviciosTemas';
+import { formatearDia, formatearInstante } from '../utils/fechas';
 import './ServicioCard.css';
 
 function formatearMonto(valor) {
     return Number(valor).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function formatearFecha(fechaIso) {
-    const [anio, mes, dia] = fechaIso.split('-').map(Number);
-    return new Date(anio, mes - 1, dia).toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
 }
 
 function ServicioCard({ servicio, onPagar }) {
@@ -29,7 +25,7 @@ function ServicioCard({ servicio, onPagar }) {
             <div className="servicio-card-datos">
                 <p className="servicio-card-monto">$ {formatearMonto(servicio.monto)}</p>
                 <p className={`servicio-card-fecha ${servicio.vencida ? 'vencida' : ''}`}>
-                    {pagada ? `Pagada el ${formatearFecha(servicio.fechaPago.split('T')[0])}` : `Vence el ${formatearFecha(servicio.fechaVencimiento)}`}
+                    {pagada ? `Pagada el ${formatearInstante(servicio.fechaPago)}` : `Vence el ${formatearDia(servicio.fechaVencimiento)}`}
                 </p>
             </div>
 

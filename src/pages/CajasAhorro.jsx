@@ -6,18 +6,19 @@ import CajaAhorroModal from '../components/CajaAhorroModal';
 import MontoCajaModal from '../components/MontoCajaModal';
 import { IconArrowLeft, IconPlus, IconPiggyBank } from '../components/icons/Icons';
 import { obtenerPerfil } from '../services/perfilService';
-import { listarCajasAhorro, eliminarCajaAhorro } from '../services/cajaAhorroService';
+import { listarCajasAhorro, eliminarCajaAhorro, obtenerLimiteCajas } from '../services/cajaAhorroService';
 import '../pages/Movimientos.css';
 import '../components/TransferModal.css';
 import './CajasAhorro.css';
-
-const MAX_CAJAS = 8;
 
 function CajasAhorro() {
     const navigate = useNavigate();
     const [cajas, setCajas] = useState([]);
     const [saldoPesos, setSaldoPesos] = useState(0);
     const [cargando, setCargando] = useState(true);
+    // Cuantas cajas puede tener cada usuario: lo define el admin desde el panel, asi que viene del backend
+    // (null mientras no llego; el backend igual rechaza lo que se pase del limite).
+    const [maxCajas, setMaxCajas] = useState(null);
 
     const [modalCrearAbierto, setModalCrearAbierto] = useState(false);
     const [cajaAEditar, setCajaAEditar] = useState(null);
@@ -27,6 +28,7 @@ function CajasAhorro() {
     const [errorEliminar, setErrorEliminar] = useState('');
 
     const cargar = useCallback(() => {
+        obtenerLimiteCajas().then((limite) => setMaxCajas(Number(limite.maxPorUsuario))).catch(() => {});
         return Promise.all([listarCajasAhorro(), obtenerPerfil()])
             .then(([listaCajas, perfil]) => {
                 setCajas(listaCajas);
@@ -103,8 +105,8 @@ function CajasAhorro() {
                     <button
                         className="cajas-ahorro-btn-nuevo"
                         onClick={abrirCrear}
-                        disabled={cajas.length >= MAX_CAJAS}
-                        title={cajas.length >= MAX_CAJAS ? `Ya tenés el máximo de ${MAX_CAJAS} cajas` : undefined}
+                        disabled={maxCajas !== null && cajas.length >= maxCajas}
+                        title={maxCajas !== null && cajas.length >= maxCajas ? `Ya tenés el máximo de ${maxCajas} cajas` : undefined}
                     >
                         <IconPlus size={15} /> Nueva caja
                     </button>

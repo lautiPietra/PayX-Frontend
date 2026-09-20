@@ -1,0 +1,262 @@
+/* ===== Chips (selector de periodo / horas), compartidos por las pestañas nuevas del panel ===== */
+.admin-chips {
+  display: inline-flex;
+  gap: 6px;
+  padding: 4px;
+  background-color: #f3f4f6;
+  border-radius: 12px;
+}
+
+.admin-chip {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.admin-chip:hover:not(.activo) {
+  color: #1a1a1a;
+}
+
+.admin-chip.activo {
+  background-color: #1a1a1a;
+  color: #ffffff;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== Dashboard ===== */
+.admin-metricas-cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.admin-metricas-rango {
+  margin: 0;
+  font-size: 13.5px;
+  color: #6b7280;
+}
+
+.admin-metricas-contenido {
+  transition: opacity 0.25s;
+}
+
+.admin-metricas-contenido.cargando {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.admin-metricas-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.admin-metricas-skeleton-kpi {
+  height: 150px;
+}
+
+.admin-metricas-skeleton-bloque {
+  height: 220px;
+  margin-bottom: 20px;
+}
+
+.admin-kpi {
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background-color: #ffffff;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, border-color 0.25s;
+  animation: admin-subir 0.55s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.admin-kpi:nth-child(2) { animation-delay: 70ms; }
+.admin-kpi:nth-child(3) { animation-delay: 140ms; }
+.admin-kpi:nth-child(4) { animation-delay: 210ms; }
+
+.admin-kpi:hover {
+  transform: translateY(-3px);
+  border-color: #ffd2b8;
+  box-shadow: 0 10px 24px rgba(255, 107, 26, 0.1);
+}
+
+@keyframes admin-subir {
+  from { opacity: 0; transform: translateY(14px); }
+}
+
+.admin-kpi-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background-color: #fff3ec;
+  color: #ff6b1a;
+}
+
+.admin-kpi-etiqueta {
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+.admin-kpi-valor {
+  margin: 0 0 3px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.admin-kpi-detalle {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.admin-kpi-variacion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.admin-kpi-extra {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.admin-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.admin-delta.sube {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.admin-delta.baja {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.admin-delta.neutra {
+  background-color: #f3f4f6;
+  color: #6b7280;
+}
+
+.admin-delta .invertido {
+  transform: scaleY(-1);
+}
+
+/* ===== Bloques ===== */
+.admin-bloque {
+  padding: 20px 22px;
+  margin-bottom: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background-color: #ffffff;
+  animation: admin-subir 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.15s backwards;
+}
+
+.admin-bloque-titulo {
+  margin: 0 0 16px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+}
+
+.admin-bloque-titulo span {
+  font-weight: 500;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.admin-patrimonio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.admin-patrimonio-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 12px;
+  background-color: #f9fafb;
+}
+
+.admin-patrimonio-icono {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background-color: #1a1a1a;
+  color: #ff8b4d;
+  flex-shrink: 0;
+}
+
+.admin-patrimonio-etiqueta {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.admin-patrimonio-valor {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1a1a1a;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .admin-bloque {
+    padding: 16px;
+  }
+
+  .admin-kpi-valor {
+    font-size: 21px;
+  }
+
+  .admin-metricas-cabecera {
+    align-items: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-kpi,
+  .admin-bloque {
+    animation: none;
+    transition: none;
+  }
+}

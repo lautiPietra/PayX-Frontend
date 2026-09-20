@@ -7,13 +7,30 @@
 
 .estadistica-donut-grafico {
     position: relative;
-    width: 160px;
-    height: 160px;
+    width: 190px;
+    height: 190px;
     flex-shrink: 0;
+    margin: 0 auto;
 }
 
-.estadistica-donut-grafico svg circle {
-    transition: stroke-dasharray 0.5s ease, stroke-dashoffset 0.5s ease;
+.estadistica-donut-segmento {
+    cursor: pointer;
+    transition: stroke-dasharray 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1),
+        stroke-width 0.25s ease,
+        opacity 0.25s ease;
+    animation: estadistica-donut-dibujar 1s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+.estadistica-donut-segmento.atenuado {
+    opacity: 0.28;
+}
+
+/* El tramo "crece" desde cero hasta su largo real (el "to" es el valor ya calculado). */
+@keyframes estadistica-donut-dibujar {
+    from {
+        stroke-dasharray: 0 1000;
+    }
 }
 
 .estadistica-donut-centro {
@@ -23,8 +40,10 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 2px;
+    gap: 3px;
     text-align: center;
+    padding: 0 34px;
+    pointer-events: none;
 }
 
 .estadistica-donut-centro-label {
@@ -32,13 +51,20 @@
     color: #9ca3af;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    line-height: 1.25;
 }
 
 .estadistica-donut-centro-valor {
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 700;
     color: #1a1a1a;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-variant-numeric: tabular-nums;
+}
+
+.estadistica-donut-centro-pct {
+    font-size: 11px;
+    color: #9ca3af;
 }
 
 .estadistica-donut-leyenda {
@@ -47,23 +73,53 @@
     padding: 0;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
     flex: 1;
-    min-width: 220px;
+    min-width: 240px;
 }
 
-.estadistica-donut-leyenda li {
+.estadistica-donut-fila {
     display: flex;
     align-items: center;
-    gap: 10px;
+    flex-wrap: wrap;
+    column-gap: 10px;
+    row-gap: 7px;
+    padding: 9px 12px;
+    border-radius: 12px;
     font-size: 13.5px;
+    cursor: pointer;
+    outline: none;
+    transition: background-color 0.2s, opacity 0.25s, transform 0.2s;
+}
+
+.estadistica-donut-fila:hover,
+.estadistica-donut-fila:focus-visible,
+.estadistica-donut-fila.activa {
+    background-color: #f9fafb;
+    transform: translateX(3px);
+}
+
+.estadistica-donut-fila.atenuada {
+    opacity: 0.45;
+}
+
+.estadistica-donut-fila.sin-gasto .estadistica-donut-monto,
+.estadistica-donut-fila.sin-gasto .estadistica-donut-etiqueta {
+    color: #9ca3af;
 }
 
 .estadistica-donut-punto {
     width: 10px;
     height: 10px;
     border-radius: 50%;
+    background-color: var(--color);
     flex-shrink: 0;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.estadistica-donut-fila.activa .estadistica-donut-punto {
+    transform: scale(1.3);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color) 22%, transparent);
 }
 
 .estadistica-donut-etiqueta {
@@ -78,10 +134,34 @@
 }
 
 .estadistica-donut-porcentaje {
-    min-width: 44px;
+    min-width: 46px;
     text-align: right;
     color: #9ca3af;
     font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+.estadistica-donut-barra {
+    flex-basis: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background-color: #f3f4f6;
+    overflow: hidden;
+}
+
+.estadistica-donut-barra-relleno {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background-color: var(--color);
+    transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: estadistica-donut-llenar 0.9s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+@keyframes estadistica-donut-llenar {
+    from {
+        width: 0;
+    }
 }
 
 .estadistica-donut-vacio {
@@ -92,4 +172,31 @@
     padding: 20px 0;
     color: #9ca3af;
     font-size: 13.5px;
+}
+
+@media (max-width: 520px) {
+    .estadistica-donut {
+        gap: 20px;
+    }
+
+    .estadistica-donut-leyenda {
+        min-width: 0;
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .estadistica-donut-segmento,
+    .estadistica-donut-barra-relleno,
+    .estadistica-donut-fila {
+        animation: none;
+        transition: none;
+    }
+}
+
+.estadistica-donut-detalle {
+    display: block;
+    margin-top: 1px;
+    font-size: 11px;
+    color: #9ca3af;
 }

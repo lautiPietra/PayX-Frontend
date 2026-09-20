@@ -1,44 +1,119 @@
+/* ---------- selector de periodo (pastilla que se desliza) ---------- */
+
 .estadisticas-periodos {
-    display: flex;
-    gap: 8px;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 420px;
     margin-bottom: 24px;
-    flex-wrap: wrap;
+    padding: 4px;
+    background-color: #f3f4f6;
+    border-radius: 14px;
+}
+
+.estadisticas-periodos-indicador {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc((100% - 8px) / 4);
+    background-color: #1a1a1a;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+    transform: translateX(calc(var(--idx, 1) * 100%));
+    transition: transform 0.4s cubic-bezier(0.34, 1.35, 0.64, 1);
 }
 
 .estadisticas-periodo-btn {
-    padding: 8px 16px;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 20px;
-    background-color: #ffffff;
-    color: #4b5563;
+    position: relative;
+    z-index: 1;
+    padding: 9px 8px;
+    border: none;
+    background: none;
+    color: #6b7280;
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     font-family: inherit;
-    transition: all 0.2s;
+    transition: color 0.25s;
 }
 
 .estadisticas-periodo-btn:hover {
-    background-color: #f9fafb;
+    color: #1a1a1a;
 }
 
-.estadisticas-periodo-btn.activo {
-    background-color: #1a1a1a;
-    border-color: #1a1a1a;
+.estadisticas-periodo-btn.activo,
+.estadisticas-periodo-btn.activo:hover {
     color: #ffffff;
 }
 
-.estadisticas-total-card {
+/* ---------- contenido y entrada escalonada ---------- */
+
+.estadisticas-contenido {
+    transition: opacity 0.25s;
+}
+
+.estadisticas-contenido.actualizando {
+    opacity: 0.55;
+    pointer-events: none;
+}
+
+.estadisticas-entrada {
+    animation: estadisticas-subir 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+    animation-delay: calc(var(--d, 0) * 80ms);
+}
+
+@keyframes estadisticas-subir {
+    from {
+        opacity: 0;
+        transform: translateY(16px);
+    }
+}
+
+/* ---------- resumen principal ---------- */
+
+.estadisticas-hero {
+    position: relative;
+    overflow: hidden;
+    padding: 22px 24px 0;
+    margin-bottom: 16px;
+    background: linear-gradient(160deg, #1a1a1a, #2d2d2d);
+    border-radius: 20px;
+    box-shadow: 0 14px 34px rgba(26, 26, 26, 0.22);
+}
+
+/* Resplandor naranja que flota lento detras del numero. */
+.estadisticas-hero::before {
+    content: '';
+    position: absolute;
+    top: -70px;
+    right: -50px;
+    width: 240px;
+    height: 240px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 107, 26, 0.38), transparent 68%);
+    animation: estadisticas-flotar 7s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+
+@keyframes estadisticas-flotar {
+    from {
+        transform: translate(0, 0) scale(1);
+    }
+    to {
+        transform: translate(-34px, 22px) scale(1.18);
+    }
+}
+
+.estadisticas-hero-cabecera {
+    position: relative;
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 22px 24px;
-    background: linear-gradient(160deg, #1a1a1a, #2d2d2d);
-    border-radius: 16px;
-    margin-bottom: 24px;
+    margin-bottom: 14px;
 }
 
-.estadisticas-total-icono {
+.estadisticas-hero-icono {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -50,21 +125,122 @@
     flex-shrink: 0;
 }
 
-.estadisticas-total-label {
+.estadisticas-hero-label {
     margin: 0 0 4px;
     font-size: 12.5px;
     color: #9ca3af;
 }
 
-.estadisticas-total-valor {
+.estadisticas-hero-valor {
     margin: 0;
-    font-size: 26px;
+    font-size: 30px;
     font-weight: 700;
     color: #ffffff;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
     letter-spacing: -0.01em;
     font-variant-numeric: tabular-nums;
 }
+
+.estadisticas-variacion {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 11px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    animation: estadisticas-subir 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.35s backwards;
+}
+
+.estadisticas-variacion.sube {
+    background-color: rgba(251, 146, 60, 0.18);
+    color: #fdba74;
+}
+
+.estadisticas-variacion.baja {
+    background-color: rgba(34, 197, 94, 0.18);
+    color: #86efac;
+}
+
+.estadisticas-variacion.neutra {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: #d1d5db;
+}
+
+.estadisticas-variacion .invertido {
+    transform: scaleY(-1);
+}
+
+.estadisticas-hero-sparkline {
+    position: relative;
+    margin: 6px -24px 0;
+}
+
+/* Sin sparkline (ej. "Todo"), el hero necesita su propio aire abajo. */
+.estadisticas-hero:not(:has(.estadisticas-hero-sparkline)) {
+    padding-bottom: 22px;
+}
+
+/* ---------- tarjetas de datos ---------- */
+
+.estadisticas-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.estadisticas-kpi {
+    padding: 16px 16px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    background-color: #ffffff;
+    transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.25s, border-color 0.25s;
+}
+
+.estadisticas-kpi:hover {
+    transform: translateY(-3px);
+    border-color: #ffd2b8;
+    box-shadow: 0 10px 24px rgba(255, 107, 26, 0.1);
+}
+
+.estadisticas-kpi-icono {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background-color: #fff3ec;
+    color: #ff6b1a;
+}
+
+.estadisticas-kpi-etiqueta {
+    margin: 0 0 3px;
+    font-size: 11.5px;
+    color: #9ca3af;
+    font-weight: 500;
+}
+
+.estadisticas-kpi-valor {
+    margin: 0 0 2px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a1a1a;
+    font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.estadisticas-kpi-detalle {
+    margin: 0;
+    font-size: 11.5px;
+    color: #9ca3af;
+}
+
+/* ---------- secciones ---------- */
 
 .estadisticas-seccion {
     border: 1px solid #e5e7eb;
@@ -81,8 +257,68 @@
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
 }
 
+/* ---------- carga (esqueleto) ---------- */
+
+.estadisticas-skeleton {
+    border-radius: 16px;
+    background: linear-gradient(100deg, #f3f4f6 30%, #e9ebee 50%, #f3f4f6 70%);
+    background-size: 220% 100%;
+    animation: estadisticas-brillo 1.3s linear infinite;
+}
+
+.estadisticas-skeleton-hero {
+    height: 150px;
+    margin-bottom: 16px;
+    border-radius: 20px;
+}
+
+.estadisticas-skeleton-kpi {
+    height: 112px;
+}
+
+.estadisticas-skeleton-seccion {
+    height: 260px;
+}
+
+@keyframes estadisticas-brillo {
+    from {
+        background-position: 100% 0;
+    }
+    to {
+        background-position: -120% 0;
+    }
+}
+
 @media (max-width: 520px) {
-    .estadisticas-total-valor {
-        font-size: 21px;
+    .estadisticas-hero-valor {
+        font-size: 24px;
+    }
+
+    .estadisticas-hero {
+        padding: 18px 18px 0;
+    }
+
+    .estadisticas-hero-sparkline {
+        margin: 6px -18px 0;
+    }
+
+    .estadisticas-seccion {
+        padding: 18px 16px;
+    }
+
+    .estadisticas-kpis {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .estadisticas-entrada,
+    .estadisticas-variacion,
+    .estadisticas-hero::before,
+    .estadisticas-skeleton,
+    .estadisticas-periodos-indicador,
+    .estadisticas-kpi {
+        animation: none;
+        transition: none;
     }
 }
