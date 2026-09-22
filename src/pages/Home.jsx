@@ -78,6 +78,10 @@ function Home() {
     const [aviso, setAviso] = useState(null);
     const avisoTimeoutRef = useRef(null);
     const [modalActivo, setModalActivo] = useState(null); // null | 'pesos' | 'dolares' | 'cripto'
+    // Transferencia que dejo preparada el asistente de IA (ver AsistenteChat), para completar el
+    // formulario apenas se abre. Se limpia al cerrar cualquiera de los tres modales de transferencia,
+    // asi una apertura manual posterior no arrastra datos de una sugerencia vieja.
+    const [prefillTransferencia, setPrefillTransferencia] = useState(null);
     const [plazoFijoAbierto, setPlazoFijoAbierto] = useState(false);
     const [cambioDolaresActivo, setCambioDolaresActivo] = useState(null); // null | 'compra' | 'venta'
     const [cambioCriptoActivo, setCambioCriptoActivo] = useState(null); // null | 'compra' | 'venta'
@@ -305,6 +309,49 @@ function Home() {
         return () => clearInterval(intervalo);
     }, []);
 
+    // El asistente de IA (ver AsistenteChat) avisa por acá cuando dejo lista una transferencia para que
+    // el usuario la revise. Dos canales para el mismo dato: el evento cubre "ya estoy en Home" (el chat
+    // flotante vive en todas las paginas privadas), y sessionStorage cubre "vengo navegando desde otra
+    // pagina" (Home todavia no existia para escuchar el evento cuando el chat lo disparo).
+    useEffect(() => {
+        function aplicarAccionAsistente(accion) {
+            if (!accion || accion.tipo !== 'TRANSFERENCIA') return;
+            const prefill = {
+                destinatario: accion.destinatario,
+                monto: accion.monto ?? '',
+                motivo: accion.motivo || '',
+                tipo: accion.tipoTransferencia || 'DIRECTA',
+            };
+            if (accion.moneda === 'PESOS') {
+                setPrefillTransferencia(prefill);
+                setModalActivo('pesos');
+            } else if (accion.moneda === 'USD') {
+                setPrefillTransferencia(prefill);
+                setModalActivo('dolares');
+            } else {
+                setPrefillTransferencia({ ...prefill, criptoSeleccionada: accion.moneda });
+                setModalActivo('cripto');
+            }
+        }
+
+        function alRecibirEvento(evento) {
+            aplicarAccionAsistente(evento.detail);
+        }
+        window.addEventListener('payx-accion-asistente', alRecibirEvento);
+
+        const pendiente = sessionStorage.getItem('payx-accion-asistente');
+        if (pendiente) {
+            sessionStorage.removeItem('payx-accion-asistente');
+            try {
+                aplicarAccionAsistente(JSON.parse(pendiente));
+            } catch {
+                // dato invalido en sessionStorage: se ignora
+            }
+        }
+
+        return () => window.removeEventListener('payx-accion-asistente', alRecibirEvento);
+    }, []);
+
     // Las cotizaciones se refrescan aparte, cada 20s: pollearlas a 5s no traeria
     // nada mas fresco (el backend las cachea 60s) y solo agregaria pedidos de mas.
     useEffect(() => {
@@ -512,24 +559,27 @@ function Home() {
 
             <TransferModal
                 abierto={modalActivo === 'pesos'}
-                onCerrar={() => setModalActivo(null)}
+                onCerrar={() => { setModalActivo(null); setPrefillTransferencia(null); }}
                 config={configModalPesos}
                 onExito={cargarDatosTrasTransferencia}
                 contactos={contactosFrecuentes}
+                prefill={prefillTransferencia}
             />
             <TransferModal
                 abierto={modalActivo === 'dolares'}
-                onCerrar={() => setModalActivo(null)}
+                onCerrar={() => { setModalActivo(null); setPrefillTransferencia(null); }}
                 config={configModalDolares}
                 onExito={cargarDatosTrasTransferencia}
                 contactos={contactosFrecuentes}
+                prefill={prefillTransferencia}
             />
             <TransferModal
                 abierto={modalActivo === 'cripto'}
-                onCerrar={() => setModalActivo(null)}
+                onCerrar={() => { setModalActivo(null); setPrefillTransferencia(null); }}
                 config={configModalCripto}
                 onExito={cargarDatosTrasTransferencia}
                 contactos={contactosFrecuentes}
+                prefill={prefillTransferencia}
             />
             <PlazoFijoModal
                 abierto={plazoFijoAbierto}

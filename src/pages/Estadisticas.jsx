@@ -152,6 +152,7 @@ function Estadisticas() {
             Icon: IconTrendingUp,
             etiqueta: 'Promedio diario',
             valor: `$ ${formatearMonto(resumen.promedioDiario)}`,
+            esMonto: true,
             detalle: 'por día del período',
         },
         resumen.diaPico && {
@@ -159,6 +160,7 @@ function Estadisticas() {
             Icon: IconCalendar,
             etiqueta: 'Día de mayor gasto',
             valor: `$ ${formatearMonto(resumen.diaPico.monto)}`,
+            esMonto: true,
             detalle: formatearFechaCorta(resumen.diaPico.fecha),
         },
         resumen.categoriaPrincipal && {
@@ -233,7 +235,7 @@ function Estadisticas() {
                                             <k.Icon size={16} />
                                         </span>
                                         <p className="estadisticas-kpi-etiqueta">{k.etiqueta}</p>
-                                        <p className="estadisticas-kpi-valor">{k.valor}</p>
+                                        <p className={`estadisticas-kpi-valor${k.esMonto ? ' monto' : ''}`}>{k.valor}</p>
                                         <p className="estadisticas-kpi-detalle">{k.detalle}</p>
                                     </div>
                                 ))}

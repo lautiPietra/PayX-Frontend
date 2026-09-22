@@ -10,6 +10,7 @@ const TITULOS_PLANTILLA = {
     INICIO_SES: 'Inicio de sesión',
     TRANSFERENCIA_ENVIADA: 'Transferencia enviada',
     TRANSFERENCIA_RECIBIDA: 'Transferencia recibida',
+    TRANSFERENCIA_VENCIDA: 'Transferencia vencida',
     PLAZO_FIJO_CONSTITUIDO: 'Plazo fijo constituido',
     PLAZO_FIJO_VENCIDO: 'Plazo fijo acreditado',
     DOLARES_COMPRADOS: 'Compra de dólares',
@@ -27,6 +28,7 @@ function Navbar() {
     const navigate = useNavigate();
     const location = useLocation();
     const [menuAbierto, setMenuAbierto] = useState(false);
+    const [confirmandoLogout, setConfirmandoLogout] = useState(false);
     const [notificaciones, setNotificaciones] = useState([]);
     const [notificacionesAbiertas, setNotificacionesAbiertas] = useState(false);
     const notificacionesRef = useRef(null);
@@ -80,7 +82,15 @@ function Navbar() {
         }
     };
 
+    // El boton solo pide confirmacion; el logout de verdad (que ademas borra la
+    // charla del asistente, ver authService.js) recien pasa si se acepta el cartel.
+    const pedirConfirmacionLogout = () => {
+        setMenuAbierto(false);
+        setConfirmandoLogout(true);
+    };
+
     const handleLogout = () => {
+        setConfirmandoLogout(false);
         logout();
         navigate('/login');
     };
@@ -187,7 +197,7 @@ function Navbar() {
                             </div>
                             <span className="navbar-nombre">{usuario.nombreCompleto}</span>
                         </Link>
-                        <button onClick={handleLogout} className="navbar-logout" title="Cerrar sesion">
+                        <button onClick={pedirConfirmacionLogout} className="navbar-logout" title="Cerrar sesion">
                             <IconLogOut size={17} />
                         </button>
                     </div>
@@ -236,7 +246,7 @@ function Navbar() {
                         ))}
                     </div>
 
-                    <button onClick={handleLogout} className="navbar-menu-logout">
+                    <button onClick={pedirConfirmacionLogout} className="navbar-menu-logout">
                         <IconLogOut size={17} /> Cerrar sesion
                     </button>
 
@@ -245,6 +255,25 @@ function Navbar() {
 
             {/* Backdrop para cerrar el menu mobile al hacer clic afuera */}
             {menuAbierto && <div className="navbar-backdrop" onClick={cerrarMenu}></div>}
+
+            {/* Confirmacion de cierre de sesion */}
+            {confirmandoLogout && (
+                <div className="navbar-logout-overlay" onClick={() => setConfirmandoLogout(false)}>
+                    <div className="navbar-logout-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="navbar-logout-icono"><IconLogOut size={22} /></div>
+                        <h2 className="navbar-logout-titulo">¿Cerrar sesión?</h2>
+                        <p className="navbar-logout-texto">Vas a tener que volver a iniciar sesión para acceder a tu cuenta.</p>
+                        <div className="navbar-logout-botones">
+                            <button className="navbar-logout-cancelar" onClick={() => setConfirmandoLogout(false)}>
+                                Cancelar
+                            </button>
+                            <button className="navbar-logout-confirmar" onClick={handleLogout}>
+                                Cerrar sesión
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 }

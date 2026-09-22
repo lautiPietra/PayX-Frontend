@@ -8,9 +8,21 @@
 .estadistica-donut-grafico {
     position: relative;
     width: 190px;
-    height: 190px;
+    max-width: 100%;
+    aspect-ratio: 1;
     flex-shrink: 0;
     margin: 0 auto;
+}
+
+.estadistica-donut-grafico svg,
+.estadistica-donut-vacio svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.estadistica-donut-vacio svg {
+    max-width: 190px;
 }
 
 .estadistica-donut-segmento {
@@ -42,7 +54,8 @@
     justify-content: center;
     gap: 3px;
     text-align: center;
-    padding: 0 34px;
+    /* El hueco de la dona mide 116px de ancho (190 - 2 * 37): el texto no puede pasar de ahi. */
+    padding: 0 37px;
     pointer-events: none;
 }
 
@@ -60,6 +73,7 @@
     color: #1a1a1a;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .estadistica-donut-centro-pct {
@@ -74,8 +88,10 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    flex: 1;
-    min-width: 240px;
+    /* Base de 260px con min-width 0: si no entran la dona y la leyenda lado a lado, la leyenda baja
+       a su propia linea y ocupa todo el ancho, en vez de quedar apretada al costado. */
+    flex: 1 1 260px;
+    min-width: 0;
 }
 
 .estadistica-donut-fila {
@@ -124,17 +140,21 @@
 
 .estadistica-donut-etiqueta {
     color: #4b5563;
-    flex: 1;
+    flex: 1 1 110px;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
 
 .estadistica-donut-monto {
     color: #1a1a1a;
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
 }
 
 .estadistica-donut-porcentaje {
     min-width: 46px;
+    white-space: nowrap;
     text-align: right;
     color: #9ca3af;
     font-size: 12px;
@@ -180,8 +200,59 @@
     }
 
     .estadistica-donut-leyenda {
+        flex-basis: 100%;
+    }
+
+    .estadistica-donut-fila {
+        padding: 9px 8px;
+    }
+}
+
+/* Cuando la leyenda queda angosta, cada fila se ordena en grilla en vez de dejar que el navegador parta las
+   piezas donde pueda: arriba punto + nombre + monto, abajo la barra con el porcentaje. */
+@media (max-width: 640px) {
+    .estadistica-donut-fila {
+        display: grid;
+        grid-template-columns: 10px minmax(0, 1fr) auto;
+        align-items: center;
+        column-gap: 10px;
+        row-gap: 6px;
+    }
+
+    .estadistica-donut-punto {
+        grid-column: 1;
+        grid-row: 1;
+    }
+
+    .estadistica-donut-etiqueta {
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .estadistica-donut-monto {
+        grid-column: 3;
+        grid-row: 1;
+        text-align: right;
+    }
+
+    .estadistica-donut-barra {
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .estadistica-donut-porcentaje {
+        grid-column: 3;
+        grid-row: 2;
         min-width: 0;
-        width: 100%;
+    }
+}
+
+/* En pantallas tactiles no hay hover: el corrimiento de la fila quedaba "pegado" al tocar y empujaba el borde. */
+@media (hover: none) {
+    .estadistica-donut-fila:hover,
+    .estadistica-donut-fila:focus-visible,
+    .estadistica-donut-fila.activa {
+        transform: none;
     }
 }
 

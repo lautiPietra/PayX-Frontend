@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { limpiarConversacionAsistente } from '../utils/asistenteStorage';
 
 const API_URL = 'http://localhost:8080/api/auth';
 
@@ -11,22 +12,23 @@ axios.interceptors.request.use((config) => {
     return config;
 });
 
-// Interceptor de respuesta: si recibimos 401 (token expirado), cerramos sesion
-axios.interceptors.response.use(
-    (response) => response,
-    (error) => {
-        if (error.response?.status === 401) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('usuario');
-            // Solo redirigimos si no estamos en una pagina publica
-            const rutasPublicas = ['/login', '/registro', '/verificacion', '/olvide-password', '/verificar-codigo-reset', '/nueva-password'];
-            if (!rutasPublicas.includes(window.location.pathname)) {
-                window.location.href = '/login';
-            }
+// Si recibimos 401 (token expirado), cerramos sesion. Separada del .use() de abajo (en vez de
+// una funcion anonima inline) para poder testearla sola, sin pelear con los internos de axios.
+export const manejarRespuestaConError = (error) => {
+    if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        localStorage.removeItem('usuario');
+        limpiarConversacionAsistente();
+        // Solo redirigimos si no estamos en una pagina publica
+        const rutasPublicas = ['/login', '/registro', '/verificacion', '/olvide-password', '/verificar-codigo-reset', '/nueva-password'];
+        if (!rutasPublicas.includes(window.location.pathname)) {
+            window.location.href = '/login';
         }
-        return Promise.reject(error);
     }
-);
+    return Promise.reject(error);
+};
+
+axios.interceptors.response.use((response) => response, manejarRespuestaConError);
 
 export const registrarUsuario = async (datos) => {
     const response = await axios.post(`${API_URL}/register`, datos);
@@ -90,6 +92,7 @@ export const esAdmin = () => {
 export const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('usuario');
+    limpiarConversacionAsistente();
 };
 
 export const estaLogueado = () => {

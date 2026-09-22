@@ -13,6 +13,11 @@ const PERIODOS = [
     { dias: 90, label: '90 días' },
 ];
 
+// Lo ultimo que se cargo de cada periodo. Las metricas viven en una pestaña que se desmonta al cambiar de pestaña: sin esto,
+// cada vuelta mostraba el esqueleto hasta que respondia la base. Con esto se muestra lo anterior al instante y se refresca
+// en segundo plano (el pedido sale igual).
+const ultimoPorPeriodo = new Map();
+
 function formatearEntero(valor) {
     return Math.round(Number(valor)).toLocaleString('es-AR');
 }
@@ -55,13 +60,25 @@ function Esqueleto() {
 // viene la actividad dia a dia. Reutiliza los graficos hechos a mano de Estadisticas.
 function AdminMetricas() {
     const [dias, setDias] = useState(30);
-    const [resultado, setResultado] = useState(null); // { dias, datos, error }
+    const [resultado, setResultado] = useState(() => { // { dias, datos, error }
+        const guardado = ultimoPorPeriodo.get(30);
+        return guardado ? { dias: 30, datos: guardado, error: '' } : null;
+    });
+
+    function cambiarPeriodo(nuevo) {
+        setDias(nuevo);
+        const guardado = ultimoPorPeriodo.get(nuevo);
+        if (guardado) setResultado({ dias: nuevo, datos: guardado, error: '' });
+    }
 
     useEffect(() => {
         // Respuestas desordenadas al cambiar rapido de periodo: se ignora la que ya no corresponde.
         let cancelado = false;
         obtenerMetricas(dias)
-            .then((datos) => { if (!cancelado) setResultado({ dias, datos, error: '' }); })
+            .then((datos) => {
+                ultimoPorPeriodo.set(dias, datos);
+                if (!cancelado) setResultado({ dias, datos, error: '' });
+            })
             .catch((error) => {
                 if (cancelado) return;
                 setResultado((previo) => ({
@@ -150,7 +167,7 @@ function AdminMetricas() {
                             role="tab"
                             aria-selected={dias === p.dias}
                             className={`admin-chip ${dias === p.dias ? 'activo' : ''}`}
-                            onClick={() => setDias(p.dias)}
+                            onClick={() => cambiarPeriodo(p.dias)}
                         >
                             {p.label}
                         </button>

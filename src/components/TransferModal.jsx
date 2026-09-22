@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconSend, IconCheck, IconWallet, IconChevronDown, IconClock, IconAlertTriangle } from './icons/Icons';
 import { crearTransferencia, resolverDestinatario } from '../services/transferenciaService';
 import './TransferModal.css';
@@ -30,7 +30,10 @@ function formatearMonto(valor, decimales = 2) {
 // para que la pantalla que abrio el modal pueda refrescar saldo y actividad.
 // "contactos" son los alias a los que ya se les transfirio antes (mas reciente
 // primero), para sugerirlos mientras se escribe el destinatario.
-function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
+// "prefill" (opcional) completa el formulario al abrirse -lo usa el asistente de IA para dejar
+// preparada una transferencia que el usuario pidio por chat-: { destinatario, monto, motivo, tipo,
+// criptoSeleccionada }. Nunca ejecuta nada solo: el usuario igual tiene que revisar y confirmar.
+function TransferModal({ abierto, onCerrar, config, onExito, contactos = [], prefill = null }) {
     const [paso, setPaso] = useState('form'); // 'form' | 'confirmar' | 'exito'
     const [destinatario, setDestinatario] = useState('');
     const [criptoSeleccionada, setCriptoSeleccionada] = useState('BTC');
@@ -43,6 +46,18 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
     const [destinatarioInfo, setDestinatarioInfo] = useState(null);
     const [resultado, setResultado] = useState(null);
     const [sugerenciasAbiertas, setSugerenciasAbiertas] = useState(false);
+
+    // Se aplica solo al abrirse (no en cada render): el formulario arranca limpio (ver
+    // resetearYCerrar) y esto lo completa una unica vez con lo que trajo el asistente.
+    useEffect(() => {
+        if (!abierto || !prefill) return;
+        if (prefill.destinatario) setDestinatario(prefill.destinatario);
+        if (prefill.monto !== undefined && prefill.monto !== null) setMonto(String(prefill.monto));
+        if (prefill.motivo) setMotivo(prefill.motivo);
+        if (prefill.tipo) setTipo(prefill.tipo);
+        if (prefill.criptoSeleccionada) setCriptoSeleccionada(prefill.criptoSeleccionada);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [abierto]);
 
     if (!abierto) return null;
 
@@ -287,7 +302,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                                                 <IconClock size={16} />
                                                 <div>
                                                     <strong>Dejar pendiente</strong>
-                                                    <span>No se mueve la plata hasta que vos la confirmes. Podés cancelarla mientras esté pendiente</span>
+                                                    <span>No se mueve la plata hasta que vos la confirmes. Podés cancelarla mientras esté pendiente. Se cancela sola a las 24 horas</span>
                                                 </div>
                                             </button>
                                         </div>
@@ -327,7 +342,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                                         {tipo === 'PENDIENTE' && (
                                             <div className="transfer-resumen-aviso-pendiente">
                                                 <IconAlertTriangle size={14} />
-                                                <span>No se descuenta nada hasta que confirmes la transferencia</span>
+                                                <span>No se descuenta nada hasta que confirmes la transferencia. Si pasan 24 horas sin confirmarla, se cancela automáticamente</span>
                                             </div>
                                         )}
                                     </div>
@@ -382,7 +397,7 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                             {tipo === 'PENDIENTE' && (
                                 <div className="transfer-resumen-aviso-pendiente centrado">
                                     <IconAlertTriangle size={14} />
-                                    <span>No se descuenta nada hasta que confirmes la transferencia</span>
+                                    <span>No se descuenta nada hasta que confirmes la transferencia. Si pasan 24 horas sin confirmarla, se cancela automáticamente</span>
                                 </div>
                             )}
 
@@ -421,6 +436,12 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [] }) {
                                     </>
                                 )}
                             </p>
+                            {tipo === 'PENDIENTE' && (
+                                <div className="transfer-resumen-aviso-pendiente centrado">
+                                    <IconClock size={14} />
+                                    <span>Si no la confirmás dentro de las próximas 24 horas, se cancelará automáticamente</span>
+                                </div>
+                            )}
                             {motivo && <p className="transfer-exito-concepto">{motivo}</p>}
                             <button className="transfer-btn-continuar ancho-completo" onClick={resetearYCerrar}>
                                 Listo

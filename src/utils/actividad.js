@@ -62,6 +62,39 @@ export function diaLocalDe(fecha) {
     return aFechaLocalISO(new Date(fecha));
 }
 
+// Los tipos de movimiento por los que se puede filtrar. El plazo fijo cuenta sus dos eventos (alta y
+// acreditacion al vencer) como del mismo tipo.
+export const TIPOS_ACTIVIDAD = [
+    { id: 'transferencias', label: 'Transferencias' },
+    { id: 'plazos-fijos', label: 'Plazos fijos' },
+    { id: 'dolares', label: 'Dólares' },
+    { id: 'cripto', label: 'Cripto' },
+];
+
+export function tipoDe(item) {
+    if (item.transferencia) return 'transferencias';
+    if (item.plazoFijoEvento) return 'plazos-fijos';
+    if (item.cambioDolares) return 'dolares';
+    if (item.cambioCripto) return 'cripto';
+    return null;
+}
+
+// Filtra por tipo de movimiento. "" = todos los tipos.
+export function filtrarPorTipo(items, tipo) {
+    if (!tipo) return items;
+    return items.filter((item) => tipoDe(item) === tipo);
+}
+
+// Cuantos movimientos hay de cada tipo, para mostrarlo en los botones del filtro.
+export function contarPorTipo(items) {
+    const cuentas = Object.fromEntries(TIPOS_ACTIVIDAD.map((t) => [t.id, 0]));
+    for (const item of items) {
+        const tipo = tipoDe(item);
+        if (tipo) cuentas[tipo] += 1;
+    }
+    return cuentas;
+}
+
 // Filtra por rango de dias, ambos extremos incluidos. "" = sin limite de ese lado.
 // Si desde > hasta el resultado queda vacio (el rango no contiene ningun dia).
 export function filtrarPorFecha(items, desde, hasta) {

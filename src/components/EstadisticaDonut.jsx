@@ -17,6 +17,14 @@ function formatearPorcentaje(valor) {
     return `${Number(valor).toLocaleString('es-AR', { maximumFractionDigits: 1 })}%`;
 }
 
+// El monto del centro tiene que entrar en el hueco de la dona (116px): cuanto mas largo el numero, mas chica
+// la letra, para que un total de cientos de millones no se salga del circulo.
+function estiloValorCentro(texto) {
+    const n = texto.length;
+    const px = n <= 11 ? 16 : n <= 13 ? 14 : n <= 15 ? 12 : n <= 17 ? 11 : 10;
+    return { fontSize: `${px}px` };
+}
+
 // Grafico de dona armado a mano con circulos SVG (sin libreria de graficos):
 // cada categoria es un tramo de circunferencia, con stroke-dasharray marcando
 // "cuanto tramo pinto, cuanto dejo transparente" y un dashoffset acumulado para
@@ -57,6 +65,7 @@ function EstadisticaDonut({ categorias, total, textoVacio = "Sin gastos en este 
     }, { acumulado: 0, segmentos: [] });
 
     const categoriaActiva = categorias.find((c) => c.codigo === activa);
+    const textoCentro = `$ ${formatearMonto(categoriaActiva ? categoriaActiva.monto : total)}`;
 
     function alternar(codigo) {
         setActiva((actual) => (actual === codigo ? null : codigo));
@@ -88,13 +97,13 @@ function EstadisticaDonut({ categorias, total, textoVacio = "Sin gastos en este 
                     {categoriaActiva ? (
                         <>
                             <span className="estadistica-donut-centro-label">{categoriaActiva.etiqueta}</span>
-                            <span className="estadistica-donut-centro-valor">$ {formatearMonto(categoriaActiva.monto)}</span>
+                            <span className="estadistica-donut-centro-valor" style={estiloValorCentro(textoCentro)}>{textoCentro}</span>
                             <span className="estadistica-donut-centro-pct">{formatearPorcentaje(categoriaActiva.porcentaje)} del total</span>
                         </>
                     ) : (
                         <>
                             <span className="estadistica-donut-centro-label">{etiquetaTotal}</span>
-                            <span className="estadistica-donut-centro-valor">$ {formatearMonto(total)}</span>
+                            <span className="estadistica-donut-centro-valor" style={estiloValorCentro(textoCentro)}>{textoCentro}</span>
                             <span className="estadistica-donut-centro-pct">Tocá una categoría</span>
                         </>
                     )}

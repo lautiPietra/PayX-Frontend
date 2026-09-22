@@ -125,6 +125,10 @@
     flex-shrink: 0;
 }
 
+.estadisticas-hero-cabecera > div {
+    min-width: 0;
+}
+
 .estadisticas-hero-label {
     margin: 0 0 4px;
     font-size: 12.5px;
@@ -133,7 +137,9 @@
 
 .estadisticas-hero-valor {
     margin: 0;
-    font-size: 30px;
+    /* Fluido: un total de cientos de millones tiene que entrar en la tarjeta en un celular de 320px. */
+    font-size: clamp(20px, 6.5vw, 30px);
+    overflow-wrap: anywhere;
     font-weight: 700;
     color: #ffffff;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
@@ -192,6 +198,7 @@
 }
 
 .estadisticas-kpi {
+    min-width: 0;
     padding: 16px 16px 14px;
     border: 1px solid #e5e7eb;
     border-radius: 16px;
@@ -231,7 +238,12 @@
     color: #1a1a1a;
     font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
     font-variant-numeric: tabular-nums;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
+}
+
+/* Los montos no se parten ("$" en una linea y el numero en otra). */
+.estadisticas-kpi-valor.monto {
+    white-space: nowrap;
 }
 
 .estadisticas-kpi-detalle {
@@ -289,11 +301,16 @@
     }
 }
 
-@media (max-width: 520px) {
-    .estadisticas-hero-valor {
-        font-size: 24px;
+/* En celulares muy angostos el icono va arriba del total: al lado le quitaba casi 60px al numero. */
+@media (max-width: 400px) {
+    .estadisticas-hero-cabecera {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
     }
+}
 
+@media (max-width: 520px) {
     .estadisticas-hero {
         padding: 18px 18px 0;
     }
@@ -306,8 +323,22 @@
         padding: 18px 16px;
     }
 
+    /* Dos columnas solo si cada tarjeta tiene al menos 140px; en pantallas mas angostas, una. */
     .estadisticas-kpis {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    }
+
+    .estadisticas-kpi {
+        padding: 14px 14px 12px;
+    }
+
+    /* Si queda una tarjeta sola en la ultima fila, ocupa todo el ancho en vez de quedar a medias. */
+    .estadisticas-kpi:last-child:nth-child(odd) {
+        grid-column: 1 / -1;
+    }
+
+    .estadisticas-kpi-valor {
+        font-size: 14.5px;
     }
 }
 

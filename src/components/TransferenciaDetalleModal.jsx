@@ -6,6 +6,9 @@ import './TransferenciaDetalleModal.css';
 const SIMBOLOS = { PESOS: '$', USD: 'US$' };
 const MONEDAS_CRIPTO = new Set(['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP']);
 
+// Tiene que coincidir con Transferencia.HORAS_VIGENCIA_PENDIENTE del backend.
+const HORAS_VIGENCIA_PENDIENTE = 24;
+
 const ESTADO_LABEL = {
     PENDIENTE: 'Pendiente',
     COMPLETADA: 'Completada',
@@ -168,7 +171,10 @@ function TransferenciaDetalleModal({ transferencia, onCerrar, onActualizada }) {
 
                 {transferencia.estado === 'PENDIENTE' && esEnviada && (
                     <div className="detalle-pendiente-aviso">
-                        <p>Esta transferencia todavía no se confirmó: la plata no se movió de tu cuenta.</p>
+                        <p>
+                            Esta transferencia todavía no se confirmó: la plata no se movió de tu cuenta.
+                            Si no la confirmás, se cancelará automáticamente el {formatearFecha(new Date(transferencia.fecha).getTime() + HORAS_VIGENCIA_PENDIENTE * 3600 * 1000)}.
+                        </p>
                         <div className="detalle-pendiente-botones">
                             <button className="detalle-btn-cancelar" onClick={handleCancelar} disabled={procesando}>
                                 Cancelar transferencia

@@ -20,9 +20,20 @@ import AltaPlantilla from "./pages/AltaPlantilla";
 import EditarPlantilla from "./pages/EditarPlantilla";
 import BajaPlantilla from "./pages/BajaPlantilla";
 import ListadoPlantillas from "./pages/ListadoPlantillas";
+import AsistenteChat from './components/AsistenteChat';
 
+// El asistente de IA (chat flotante) esta disponible en todas las paginas privadas del usuario, pero
+// no en el panel de admin: sus herramientas consultan los datos de la CUENTA PERSONAL de quien esta
+// logueado (saldo, movimientos propios), que no es lo que un admin espera ver mientras administra
+// la plataforma (ver RutaAdmin, sin AsistenteChat).
 function RutaPrivada({ children }) {
-    return estaLogueado() ? children : <Navigate to="/login" />;
+    if (!estaLogueado()) return <Navigate to="/login" />;
+    return (
+        <>
+            {children}
+            <AsistenteChat />
+        </>
+    );
 }
 
 function RutaAdmin({ children }) {

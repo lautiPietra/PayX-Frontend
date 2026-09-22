@@ -7,7 +7,9 @@ import { listarTransferencias } from '../services/transferenciaService';
 import { listarPlazosFijos } from '../services/plazoFijoService';
 import { listarCambiosDolares } from '../services/cambioDolaresService';
 import { listarOperacionesCripto } from '../services/criptoService';
-import { construirActividades, filtrarPorFecha, aFechaLocalISO } from '../utils/actividad';
+import {
+    construirActividades, filtrarPorFecha, filtrarPorTipo, contarPorTipo, TIPOS_ACTIVIDAD, aFechaLocalISO,
+} from '../utils/actividad';
 import { IconArrowLeft, IconX } from '../components/icons/Icons';
 import './Home.css';
 import './Movimientos.css';
@@ -49,13 +51,19 @@ function Movimientos() {
     const [detalleActivo, setDetalleActivo] = useState(null);
     const [desde, setDesde] = useState('');
     const [hasta, setHasta] = useState('');
+    const [tipo, setTipo] = useState('');
     const [cantidadVisible, setCantidadVisible] = useState(POR_TANDA);
 
     const todasLasActividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto);
-    const actividades = filtrarPorFecha(todasLasActividades, desde, hasta);
+    // Los dos filtros se combinan: primero el rango de fechas y sobre eso el tipo. Los contadores de cada tipo
+    // salen del resultado por fecha, asi el numero del boton es justo lo que se ve al elegirlo.
+    const actividadesEnRango = filtrarPorFecha(todasLasActividades, desde, hasta);
+    const cuentasPorTipo = contarPorTipo(actividadesEnRango);
+    const actividades = filtrarPorTipo(actividadesEnRango, tipo);
     const atajos = armarAtajos();
     const hoyISO = aFechaLocalISO(new Date());
-    const hayFiltro = Boolean(desde || hasta);
+    const hayFiltroFecha = Boolean(desde || hasta);
+    const hayFiltro = hayFiltroFecha || Boolean(tipo);
     const rangoInvalido = Boolean(desde && hasta && desde > hasta);
     const atajoActivo = atajos.find((a) => a.desde === desde && a.hasta === hasta);
     const hayTopeDeTransferencias = transferencias.length >= LIMITE_TRANSFERENCIAS;
@@ -77,9 +85,15 @@ function Movimientos() {
         setCantidadVisible(POR_TANDA);
     }
 
+    function cambiarTipo(valor) {
+        setTipo(valor);
+        setCantidadVisible(POR_TANDA);
+    }
+
     function limpiarFiltros() {
         setDesde('');
         setHasta('');
+        setTipo('');
         setCantidadVisible(POR_TANDA);
     }
 
@@ -171,7 +185,25 @@ function Movimientos() {
 
                 {!cargando && todasLasActividades.length > 0 && (
                     <div className="movimientos-filtros">
-                        <div className="movimientos-filtros-atajos">
+                        <div className="movimientos-filtros-atajos" role="group" aria-label="Tipo de movimiento">
+                            <button
+                                className={`movimientos-filtros-atajo ${tipo === '' ? 'activo' : ''}`}
+                                onClick={() => cambiarTipo('')}
+                            >
+                                Todos los tipos <span className="movimientos-filtros-contador">{actividadesEnRango.length}</span>
+                            </button>
+                            {TIPOS_ACTIVIDAD.map((t) => (
+                                <button
+                                    key={t.id}
+                                    className={`movimientos-filtros-atajo ${tipo === t.id ? 'activo' : ''}`}
+                                    onClick={() => cambiarTipo(t.id)}
+                                >
+                                    {t.label} <span className="movimientos-filtros-contador">{cuentasPorTipo[t.id]}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="movimientos-filtros-atajos" role="group" aria-label="Rango de fechas">
                             {atajos.map((a) => (
                                 <button
                                     key={a.id}
@@ -205,7 +237,7 @@ function Movimientos() {
                             </label>
                             {hayFiltro && (
                                 <button className="movimientos-filtros-limpiar" onClick={limpiarFiltros}>
-                                    <IconX size={13} /> Limpiar
+                                    <IconX size={13} /> Limpiar filtros
                                 </button>
                             )}
                         </div>
@@ -223,7 +255,11 @@ function Movimientos() {
 
                 {!cargando && todasLasActividades.length > 0 && actividades.length === 0 && !rangoInvalido && (
                     <div className="movimientos-sin-resultados">
-                        <p>No hay movimientos en ese rango de fechas.</p>
+                        <p>
+                            {tipo && hayFiltroFecha ? 'No hay movimientos de ese tipo en ese rango de fechas.'
+                                : tipo ? 'No hay movimientos de ese tipo.'
+                                    : 'No hay movimientos en ese rango de fechas.'}
+                        </p>
                         <button className="movimientos-filtros-limpiar" onClick={limpiarFiltros}>Ver todos los movimientos</button>
                     </div>
                 )}

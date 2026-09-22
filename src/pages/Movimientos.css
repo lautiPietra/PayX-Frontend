@@ -88,6 +88,20 @@
     color: #ffffff;
 }
 
+.movimientos-filtros-contador {
+    margin-left: 4px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background-color: #f3f4f6;
+    color: #6b7280;
+    font-size: 11px;
+}
+
+.movimientos-filtros-atajo.activo .movimientos-filtros-contador {
+    background-color: rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+}
+
 .movimientos-filtros-fechas {
     display: flex;
     flex-wrap: wrap;
