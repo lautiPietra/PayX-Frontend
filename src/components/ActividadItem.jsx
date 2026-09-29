@@ -1,4 +1,4 @@
-import { IconArrowDownCircle, IconArrowUpCircle, IconClock, IconX, IconPiggyBank, IconDollarSign, IconCoins } from './icons/Icons';
+import { IconArrowDownCircle, IconArrowUpCircle, IconClock, IconX, IconPiggyBank, IconDollarSign, IconCoins, IconZap, IconTarget } from './icons/Icons';
 
 const SIMBOLOS = { PESOS: '$', USD: 'US$' };
 const MONEDAS_CRIPTO = new Set(['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP']);
@@ -26,22 +26,80 @@ function formatearSoloFecha(fechaIso) {
     return new Date(anio, mes - 1, dia).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' });
 }
 
+// "yyyy-MM" (periodo de una factura) -> "MM/yyyy"
+function formatearPeriodo(periodo) {
+    const [anio, mes] = String(periodo).split('-');
+    return mes && anio ? `${mes}/${anio}` : String(periodo);
+}
+
 // Una fila de actividad. Puede ser una transferencia (enviada/recibida/cancelada,
 // via la prop "transferencia"), un evento de plazo fijo (constituido o acreditado
-// al vencer, via "plazoFijoEvento": { tipo: 'ALTA' | 'VENCIMIENTO', plazoFijo }), o
-// una compra/venta de dolares o de cripto (via "cambioDolares"/"cambioCripto", la
-// operacion tal cual la devuelve el backend). Se usa tanto en el resumen de Home
-// como en "Todos los movimientos".
-function ActividadItem({ transferencia, plazoFijoEvento, cambioDolares, cambioCripto, onClick }) {
+// al vencer, via "plazoFijoEvento": { tipo: 'ALTA' | 'VENCIMIENTO', plazoFijo }), una
+// compra/venta de dolares o de cripto (via "cambioDolares"/"cambioCripto", la
+// operacion tal cual la devuelve el backend), el pago de un servicio (via
+// "pagoServicio", una factura PAGADA) o un movimiento de una caja de ahorro (via
+// "movimientoCaja": { tipo: 'ALTA' | 'DEPOSITO' | 'RETIRO', cajaNombre, monto, fecha }).
+// Se usa tanto en el resumen de Home como en "Todos los movimientos".
+function ActividadItem({ transferencia, plazoFijoEvento, cambioDolares, cambioCripto, pagoServicio, movimientoCaja, onClick }) {
     const esClickeable = Boolean(onClick);
     const claseItem = `home-actividad-item${esClickeable ? ' clickeable' : ''}`;
+
+    if (pagoServicio) {
+        return (
+            <div className={claseItem} onClick={onClick}>
+                <div className="home-actividad-icono servicio">
+                    <IconZap size={18} />
+                </div>
+                <div className="home-actividad-info">
+                    <p className="home-actividad-titulo">Pago de {pagoServicio.servicioNombre}</p>
+                    <p className="home-actividad-detalle">Factura {formatearPeriodo(pagoServicio.periodo)}</p>
+                </div>
+                <div className="home-actividad-derecha">
+                    <span className="home-actividad-hora">{formatearFechaHora(pagoServicio.fechaPago)}</span>
+                    <span className="home-actividad-monto negativo">-$ {formatearMonto(pagoServicio.monto)}</span>
+                </div>
+            </div>
+        );
+    }
+
+    if (movimientoCaja) {
+        const { tipo, cajaNombre, monto, fecha } = movimientoCaja;
+        const esAlta = tipo === 'ALTA';
+        const esRetiro = tipo === 'RETIRO';
+        const titulo = esAlta ? `Creaste la caja "${cajaNombre}"`
+            : esRetiro ? `Retiro de "${cajaNombre}"`
+                : `Depósito en "${cajaNombre}"`;
+        const detalle = esAlta ? 'Nueva caja de ahorro'
+            : esRetiro ? 'A tu saldo en pesos'
+                : 'Desde tu saldo en pesos';
+
+        return (
+            <div className={claseItem} onClick={onClick}>
+                <div className={`home-actividad-icono ${esAlta ? 'caja-alta' : 'caja'}`}>
+                    {esAlta ? <IconTarget size={18} /> : <IconPiggyBank size={18} />}
+                </div>
+                <div className="home-actividad-info">
+                    <p className="home-actividad-titulo">{titulo}</p>
+                    <p className="home-actividad-detalle">{detalle}</p>
+                </div>
+                <div className="home-actividad-derecha">
+                    <span className="home-actividad-hora">{formatearFechaHora(fecha)}</span>
+                    {!esAlta && (
+                        <span className={`home-actividad-monto ${esRetiro ? 'positivo' : 'negativo'}`}>
+                            {esRetiro ? '+' : '-'}$ {formatearMonto(monto)}
+                        </span>
+                    )}
+                </div>
+            </div>
+        );
+    }
 
     if (cambioCripto) {
         const esCompra = cambioCripto.tipo === 'COMPRA';
 
         return (
             <div className={claseItem} onClick={onClick}>
-                <div className={`home-actividad-icono ${esCompra ? 'positivo' : 'negativo'}`}>
+                <div className="home-actividad-icono cripto">
                     <IconCoins size={18} />
                 </div>
                 <div className="home-actividad-info">
@@ -65,7 +123,7 @@ function ActividadItem({ transferencia, plazoFijoEvento, cambioDolares, cambioCr
 
         return (
             <div className={claseItem} onClick={onClick}>
-                <div className={`home-actividad-icono ${esCompra ? 'positivo' : 'negativo'}`}>
+                <div className="home-actividad-icono dolar">
                     <IconDollarSign size={18} />
                 </div>
                 <div className="home-actividad-info">
@@ -94,7 +152,7 @@ function ActividadItem({ transferencia, plazoFijoEvento, cambioDolares, cambioCr
 
         return (
             <div className={claseItem} onClick={onClick}>
-                <div className={`home-actividad-icono ${esAlta ? 'negativo' : 'positivo'}`}>
+                <div className="home-actividad-icono plazo-fijo">
                     <IconPiggyBank size={18} />
                 </div>
                 <div className="home-actividad-info">
@@ -125,7 +183,7 @@ function ActividadItem({ transferencia, plazoFijoEvento, cambioDolares, cambioCr
 
     return (
         <div className={claseItem} onClick={onClick}>
-            <div className={`home-actividad-icono ${esCancelada ? 'cancelada' : (esRecibida ? 'positivo' : 'negativo')}`}>
+            <div className={`home-actividad-icono ${esCancelada ? 'cancelada' : esCripto ? 'cripto' : 'transferencia'}`}>
                 {esCancelada ? <IconX size={18} /> : esCripto ? <IconCoins size={18} /> : (esRecibida ? <IconArrowDownCircle size={18} /> : <IconArrowUpCircle size={18} />)}
             </div>
             <div className="home-actividad-info">

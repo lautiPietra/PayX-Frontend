@@ -48,7 +48,7 @@
     gap: 6px;
     padding: 6px 10px;
     border-radius: 10px;
-    transition: background-color 0.4s ease;
+    transition: background-color 0.6s ease-out;
 }
 
 .cripto-ticker-simbolo {
@@ -65,14 +65,22 @@
     font-weight: 700;
     color: #1a1a1a;
     font-variant-numeric: tabular-nums;
-    transition: color 0.4s ease;
+    transition: color 0.6s ease-out;
 }
 
 .cripto-ticker-precio.sube { color: #059669; }
 .cripto-ticker-precio.baja { color: #dc2626; }
 
-.cripto-ticker-flecha { flex-shrink: 0; }
+/* La flecha entra con un fade en vez de aparecer de golpe (montaje condicional en el JSX): arranca
+   invisible y un poco mas chica, y a la vuelta siguiente del navegador (por eso el keyframe, no un
+   transition -que no dispara sobre un elemento recien montado-) llega a su tamaño y opacidad final. */
+.cripto-ticker-flecha { flex-shrink: 0; animation: cripto-ticker-flecha-entrada 0.3s ease-out; }
 .cripto-ticker-flecha.baja { transform: scaleY(-1); }
+
+@keyframes cripto-ticker-flecha-entrada {
+    from { opacity: 0; transform: scale(0.6); }
+    to { opacity: 1; transform: scale(1); }
+}
 
 .cripto-ticker-item.flash-sube { background-color: rgba(5, 150, 105, 0.14); }
 .cripto-ticker-item.flash-baja { background-color: rgba(220, 38, 38, 0.1); }

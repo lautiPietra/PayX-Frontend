@@ -25,6 +25,19 @@ function formatearMontoAccion(monto, moneda) {
     return `${simbolo} ${numero.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// El asistente a veces devuelve texto en markdown (ej. "**saldo**"), pero la burbuja es texto plano:
+// sin esto, el usuario veia los asteriscos literales en vez de la palabra resaltada. Solo se soporta
+// negrita (lo unico que se vio usar en la practica); no se suma una libreria de markdown para esto.
+function renderizarTexto(texto) {
+    const partes = String(texto).split(/(\*\*[^*]+\*\*)/g);
+    return partes.map((parte, i) => {
+        const negrita = parte.match(/^\*\*([^*]+)\*\*$/);
+        // Las partes sin negrita se devuelven como string plano (no envueltas en un elemento): asi el
+        // texto sin markdown queda igual que antes (un solo nodo de texto), sin agregar DOM de mas.
+        return negrita ? <strong key={i}>{negrita[1]}</strong> : parte;
+    });
+}
+
 function leerDeSessionStorage(clave, porDefecto) {
     try {
         const crudo = sessionStorage.getItem(clave);
@@ -117,7 +130,7 @@ function AsistenteChat() {
                     <div className="asistente-mensajes" ref={listaRef}>
                         {mensajes.map((m, i) => (
                             <div key={i} className={`asistente-fila ${m.rol === 'USUARIO' ? 'usuario' : 'asistente'}`}>
-                                <div className="asistente-burbuja">{m.texto}</div>
+                                <div className="asistente-burbuja">{renderizarTexto(m.texto)}</div>
                                 {m.accionSugerida?.tipo === 'TRANSFERENCIA' && (
                                     <div className="asistente-accion">
                                         <p className="asistente-accion-titulo">Transferencia preparada</p>

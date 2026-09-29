@@ -35,6 +35,21 @@ describe('AsistenteChat <-> asistenteStorage (mismas claves de sessionStorage)',
         expect(screen.getByText('Charla previa que deberia seguir viendose')).toBeInTheDocument();
     });
 
+    it('muestra en negrita lo que el asistente manda entre ** ** en vez de los asteriscos literales', () => {
+        sessionStorage.setItem(CLAVE_CHAT_ABIERTO, JSON.stringify(true));
+        sessionStorage.setItem(CLAVE_CHAT_MENSAJES, JSON.stringify([
+            { rol: 'ASISTENTE', texto: 'Tu saldo es de **$500.000**, todo en orden' },
+        ]));
+
+        renderChat();
+
+        expect(screen.getByText('$500.000').tagName).toBe('STRONG');
+        expect(screen.queryByText(/\*\*/)).not.toBeInTheDocument();
+        // El resto del mensaje sigue viendose, sin quedar partido de forma rara.
+        expect(screen.getByText(/Tu saldo es de/)).toBeInTheDocument();
+        expect(screen.getByText(/todo en orden/)).toBeInTheDocument();
+    });
+
     it('despues de un logout (limpiarConversacionAsistente), un chat nuevo arranca con el saludo por defecto y no con datos de la cuenta anterior', async () => {
         const user = userEvent.setup();
         sessionStorage.setItem(CLAVE_CHAT_ABIERTO, JSON.stringify(true));

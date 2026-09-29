@@ -17,6 +17,11 @@ const TITULOS_PLANTILLA = {
     DOLARES_VENDIDOS: 'Venta de dólares',
     CRIPTO_COMPRADA: 'Compra de cripto',
     CRIPTO_VENDIDA: 'Venta de cripto',
+    CAJA_AHORRO_CREADA: 'Caja de ahorro creada',
+    CAJA_AHORRO_DEPOSITO: 'Depósito en caja de ahorro',
+    CAJA_AHORRO_RETIRO: 'Retiro de caja de ahorro',
+    CAJA_AHORRO_META_ALCANZADA: 'Meta alcanzada',
+    SERVICIO_PAGADO: 'Pago de servicio',
 };
 
 function formatearHora(fechaIso) {

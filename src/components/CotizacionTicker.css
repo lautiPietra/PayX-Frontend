@@ -48,7 +48,7 @@
     gap: 8px;
     padding: 6px 12px;
     border-radius: 10px;
-    transition: background-color 0.4s ease;
+    transition: background-color 0.6s ease-out;
 }
 
 .cotizacion-ticker-label {
@@ -69,8 +69,14 @@
 .cotizacion-ticker-item.compra .cotizacion-ticker-precio { color: #059669; }
 .cotizacion-ticker-item.venta .cotizacion-ticker-precio { color: #dc2626; }
 
-.cotizacion-ticker-flecha { flex-shrink: 0; }
+/* Fade de entrada en vez de aparecer de golpe (ver el mismo truco en CriptoTicker.css). */
+.cotizacion-ticker-flecha { flex-shrink: 0; animation: cotizacion-ticker-flecha-entrada 0.3s ease-out; }
 .cotizacion-ticker-flecha.baja { transform: scaleY(-1); }
+
+@keyframes cotizacion-ticker-flecha-entrada {
+    from { opacity: 0; transform: scale(0.6); }
+    to { opacity: 1; transform: scale(1); }
+}
 
 .cotizacion-ticker-item.compra.flash-sube { background-color: rgba(5, 150, 105, 0.14); }
 .cotizacion-ticker-item.compra.flash-baja { background-color: rgba(220, 38, 38, 0.1); }

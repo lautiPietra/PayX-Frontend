@@ -7,6 +7,8 @@ import { listarTransferencias } from '../services/transferenciaService';
 import { listarPlazosFijos } from '../services/plazoFijoService';
 import { listarCambiosDolares } from '../services/cambioDolaresService';
 import { listarOperacionesCripto } from '../services/criptoService';
+import { listarHistorialFacturas } from '../services/facturaService';
+import { listarMovimientosCajas } from '../services/cajaAhorroService';
 import {
     construirActividades, filtrarPorFecha, filtrarPorTipo, contarPorTipo, TIPOS_ACTIVIDAD, aFechaLocalISO,
 } from '../utils/actividad';
@@ -18,8 +20,10 @@ import './Movimientos.css';
 // TransferenciaService.MAX_TRANSFERENCIAS_LISTADAS): un usuario con cien mil transferencias haria que cada
 // carga bajara decenas de MB. Si llegan tantas, se avisa que puede haber mas antiguas que no se listan.
 const LIMITE_TRANSFERENCIAS = 2000;
-// Cuantos movimientos se dibujan de una vez; con "Mostrar mas" se agregan de a tandas.
-const POR_TANDA = 100;
+// Cuantos movimientos entran en cada pagina de la lista.
+const POR_PAGINA = 30;
+// Cuantos numeros de pagina se muestran a cada lado de la actual (el resto se resume con "...").
+const PAGINAS_ALREDEDOR = 1;
 
 // Atajos de rango, con la misma convencion que las estadisticas: "7 dias" es hoy y
 // los 6 anteriores. Se calculan en cada render (no una sola vez al montar) para que
@@ -37,8 +41,25 @@ function armarAtajos() {
         { id: 'hoy', label: 'Hoy', desde: hoyISO, hasta: hoyISO },
         { id: '7', label: '7 días', desde: haceDias(6), hasta: hoyISO },
         { id: '30', label: '30 días', desde: haceDias(29), hasta: hoyISO },
-        { id: 'mes', label: 'Este mes', desde: aFechaLocalISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), hasta: hoyISO },
     ];
+}
+
+// Arma la lista de botones de pagina con "..." cuando hay demasiadas para mostrarlas todas:
+// siempre la primera, la ultima, la actual y las PAGINAS_ALREDEDOR de cada lado.
+function armarPaginas(paginaActual, totalPaginas) {
+    if (totalPaginas <= 1) return [1];
+    const paginas = new Set([1, totalPaginas, paginaActual]);
+    for (let i = 1; i <= PAGINAS_ALREDEDOR; i++) {
+        if (paginaActual - i >= 1) paginas.add(paginaActual - i);
+        if (paginaActual + i <= totalPaginas) paginas.add(paginaActual + i);
+    }
+    const ordenadas = [...paginas].sort((a, b) => a - b);
+    const resultado = [];
+    ordenadas.forEach((pagina, i) => {
+        if (i > 0 && pagina - ordenadas[i - 1] > 1) resultado.push('...');
+        resultado.push(pagina);
+    });
+    return resultado;
 }
 
 function Movimientos() {
@@ -47,14 +68,16 @@ function Movimientos() {
     const [plazosFijos, setPlazosFijos] = useState([]);
     const [cambiosDolares, setCambiosDolares] = useState([]);
     const [cambiosCripto, setCambiosCripto] = useState([]);
+    const [facturas, setFacturas] = useState([]);
+    const [movimientosCajas, setMovimientosCajas] = useState([]);
     const [cargando, setCargando] = useState(true);
     const [detalleActivo, setDetalleActivo] = useState(null);
     const [desde, setDesde] = useState('');
     const [hasta, setHasta] = useState('');
     const [tipo, setTipo] = useState('');
-    const [cantidadVisible, setCantidadVisible] = useState(POR_TANDA);
+    const [pagina, setPagina] = useState(1);
 
-    const todasLasActividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto);
+    const todasLasActividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto, facturas, movimientosCajas);
     // Los dos filtros se combinan: primero el rango de fechas y sobre eso el tipo. Los contadores de cada tipo
     // salen del resultado por fecha, asi el numero del boton es justo lo que se ve al elegirlo.
     const actividadesEnRango = filtrarPorFecha(todasLasActividades, desde, hasta);
@@ -67,34 +90,43 @@ function Movimientos() {
     const rangoInvalido = Boolean(desde && hasta && desde > hasta);
     const atajoActivo = atajos.find((a) => a.desde === desde && a.hasta === hasta);
     const hayTopeDeTransferencias = transferencias.length >= LIMITE_TRANSFERENCIAS;
+    const totalPaginas = Math.max(1, Math.ceil(actividades.length / POR_PAGINA));
+    // Si un filtro deja menos paginas que la actual (por ejemplo, se estaba en la pagina 5 y el
+    // nuevo filtro solo tiene 2), se cae a la ultima pagina valida en vez de mostrar una vacia.
+    const paginaActual = Math.min(pagina, totalPaginas);
 
-    // Cada vez que cambia el filtro se vuelve a la primera tanda.
+    // Cada vez que cambia el filtro se vuelve a la primera pagina.
     function cambiarDesde(valor) {
         setDesde(valor);
-        setCantidadVisible(POR_TANDA);
+        setPagina(1);
     }
 
     function cambiarHasta(valor) {
         setHasta(valor);
-        setCantidadVisible(POR_TANDA);
+        setPagina(1);
     }
 
     function aplicarAtajo(atajo) {
         setDesde(atajo.desde);
         setHasta(atajo.hasta);
-        setCantidadVisible(POR_TANDA);
+        setPagina(1);
     }
 
     function cambiarTipo(valor) {
         setTipo(valor);
-        setCantidadVisible(POR_TANDA);
+        setPagina(1);
     }
 
     function limpiarFiltros() {
         setDesde('');
         setHasta('');
         setTipo('');
-        setCantidadVisible(POR_TANDA);
+        setPagina(1);
+    }
+
+    function irAPagina(numero) {
+        setPagina(numero);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     useEffect(() => {
@@ -114,16 +146,22 @@ function Movimientos() {
     async function cargar() {
         setCargando(true);
         try {
-            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto] = await Promise.all([
+            // Servicios y cajas van con su propio catch (null = no se pudo): si alguna de esas dos falla no
+            // tiene que llevarse puestos los demas movimientos (que ya andaban antes de sumarlas).
+            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto, datosFacturas, datosCajas] = await Promise.all([
                 listarTransferencias(),
                 listarPlazosFijos(),
                 listarCambiosDolares(),
                 listarOperacionesCripto(),
+                listarHistorialFacturas().catch(() => null),
+                listarMovimientosCajas().catch(() => null),
             ]);
             setTransferencias(datosTransferencias);
             setPlazosFijos(datosPlazosFijos);
             setCambiosDolares(datosCambios);
             setCambiosCripto(datosCripto);
+            if (datosFacturas) setFacturas(datosFacturas);
+            if (datosCajas) setMovimientosCajas(datosCajas);
         } catch {
             // si falla, se muestra la lista vacia
         } finally {
@@ -136,16 +174,20 @@ function Movimientos() {
         // listados completos cada 5 segundos).
         if (document.hidden) return;
         try {
-            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto] = await Promise.all([
+            const [datosTransferencias, datosPlazosFijos, datosCambios, datosCripto, datosFacturas, datosCajas] = await Promise.all([
                 listarTransferencias(),
                 listarPlazosFijos(),
                 listarCambiosDolares(),
                 listarOperacionesCripto(),
+                listarHistorialFacturas().catch(() => null),
+                listarMovimientosCajas().catch(() => null),
             ]);
             setTransferencias(datosTransferencias);
             setPlazosFijos(datosPlazosFijos);
             setCambiosDolares(datosCambios);
             setCambiosCripto(datosCripto);
+            if (datosFacturas) setFacturas(datosFacturas);
+            if (datosCajas) setMovimientosCajas(datosCajas);
             setDetalleActivo((actual) => (actual ? datosTransferencias.find((t) => t.id === actual.id) || actual : actual));
         } catch {
             // si falla, se mantiene la lista tal como estaba
@@ -169,7 +211,7 @@ function Movimientos() {
                 </button>
 
                 <h1 className="movimientos-titulo">Todos tus movimientos</h1>
-                <p className="movimientos-subtitulo">Transferencias, plazos fijos, dólares y cripto</p>
+                <p className="movimientos-subtitulo">Transferencias, plazos fijos, dólares, cripto, servicios y cajas de ahorro</p>
 
                 {!cargando && hayTopeDeTransferencias && (
                     <p className="movimientos-aviso-tope">
@@ -266,27 +308,61 @@ function Movimientos() {
 
                 {!cargando && actividades.length > 0 && (
                     <div className="home-actividad-lista">
-                        {actividades.slice(0, cantidadVisible).map((item) => (
+                        {actividades.slice((paginaActual - 1) * POR_PAGINA, paginaActual * POR_PAGINA).map((item) => (
                             <ActividadItem
                                 key={item.key}
                                 transferencia={item.transferencia}
                                 plazoFijoEvento={item.plazoFijoEvento}
                                 cambioDolares={item.cambioDolares}
                                 cambioCripto={item.cambioCripto}
+                                pagoServicio={item.pagoServicio}
+                                movimientoCaja={item.movimientoCaja}
                                 onClick={
                                     item.transferencia ? () => setDetalleActivo(item.transferencia)
                                         : item.plazoFijoEvento ? () => navigate('/plazos-fijos')
-                                            : undefined
+                                            : item.pagoServicio ? () => navigate('/servicios')
+                                                : item.movimientoCaja ? () => navigate('/cajas-ahorro')
+                                                    : undefined
                                 }
                             />
                         ))}
                     </div>
                 )}
 
-                {!cargando && actividades.length > cantidadVisible && (
-                    <button className="movimientos-mostrar-mas" onClick={() => setCantidadVisible((n) => n + POR_TANDA)}>
-                        Mostrar más ({(actividades.length - cantidadVisible).toLocaleString('es-AR')} restantes)
-                    </button>
+                {!cargando && totalPaginas > 1 && (
+                    <nav className="movimientos-paginacion" aria-label="Paginado de movimientos">
+                        <p className="movimientos-paginacion-info">Página {paginaActual} de {totalPaginas}</p>
+                        <button
+                            className="movimientos-paginacion-boton"
+                            onClick={() => irAPagina(paginaActual - 1)}
+                            disabled={paginaActual === 1}
+                            aria-label="Página anterior"
+                        >
+                            ‹
+                        </button>
+                        {armarPaginas(paginaActual, totalPaginas).map((p, i) => (
+                            p === '...'
+                                ? <span key={`puntos-${i}`} className="movimientos-paginacion-puntos">…</span>
+                                : (
+                                    <button
+                                        key={p}
+                                        className={`movimientos-paginacion-boton ${p === paginaActual ? 'activo' : ''}`}
+                                        onClick={() => irAPagina(p)}
+                                        aria-current={p === paginaActual ? 'page' : undefined}
+                                    >
+                                        {p}
+                                    </button>
+                                )
+                        ))}
+                        <button
+                            className="movimientos-paginacion-boton"
+                            onClick={() => irAPagina(paginaActual + 1)}
+                            disabled={paginaActual === totalPaginas}
+                            aria-label="Página siguiente"
+                        >
+                            ›
+                        </button>
+                    </nav>
                 )}
             </div>
 

@@ -14,6 +14,8 @@ import { listarCambiosDolares } from '../services/cambioDolaresService';
 import { obtenerCotizacionDolar } from '../services/cotizacionService';
 import { listarOperacionesCripto } from '../services/criptoService';
 import { obtenerCotizacionesCripto } from '../services/cotizacionCriptoService';
+import { listarHistorialFacturas } from '../services/facturaService';
+import { listarMovimientosCajas } from '../services/cajaAhorroService';
 import { construirActividades } from '../utils/actividad';
 import { useValorAnimado } from '../hooks/useValorAnimado';
 import {
@@ -69,6 +71,8 @@ function Home() {
     const [cambiosDolares, setCambiosDolares] = useState([]);
     const [cotizacionDolar, setCotizacionDolar] = useState(null);
     const [cambiosCripto, setCambiosCripto] = useState([]);
+    const [facturas, setFacturas] = useState([]);
+    const [movimientosCajas, setMovimientosCajas] = useState([]);
     const [cotizacionesCripto, setCotizacionesCripto] = useState([]);
     const [detalleActivo, setDetalleActivo] = useState(null);
 
@@ -111,7 +115,7 @@ function Home() {
         return contactos;
     })();
 
-    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto);
+    const actividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto, facturas, movimientosCajas);
 
     const MONEDAS = [
         { key: 'pesos', label: 'Pesos', simbolo: '$', saldo: saldoPesos },
@@ -244,6 +248,26 @@ function Home() {
         }
     };
 
+    // Pagos de servicios y movimientos de cajas: solo cambian por acciones del propio usuario en otras
+    // pantallas (Home se vuelve a montar al volver), asi que se refrescan mas espaciado que el resto.
+    const cargarFacturas = async () => {
+        try {
+            const datos = await listarHistorialFacturas();
+            setFacturas(datos);
+        } catch {
+            // si falla, se mantiene la ultima lista conocida
+        }
+    };
+
+    const cargarMovimientosCajas = async () => {
+        try {
+            const datos = await listarMovimientosCajas();
+            setMovimientosCajas(datos);
+        } catch {
+            // si falla, se mantiene la ultima lista conocida
+        }
+    };
+
     // Mismo motivo que cargarCotizacion: el backend cachea los precios de cripto 60s.
     const cargarCotizacionesCripto = async () => {
         try {
@@ -292,6 +316,8 @@ function Home() {
         listarOperacionesCripto().then(setCambiosCripto).catch(() => {});
         cargarCotizacion();
         cargarCotizacionesCripto();
+        cargarFacturas();
+        cargarMovimientosCajas();
     }, []);
 
     // Polling: si otro usuario confirma o cancela una transferencia pendiente que
@@ -358,6 +384,8 @@ function Home() {
         const intervalo = setInterval(() => {
             cargarCotizacion();
             cargarCotizacionesCripto();
+            cargarFacturas();
+            cargarMovimientosCajas();
         }, 20000);
         return () => clearInterval(intervalo);
     }, []);
@@ -544,10 +572,14 @@ function Home() {
                             plazoFijoEvento={item.plazoFijoEvento}
                             cambioDolares={item.cambioDolares}
                             cambioCripto={item.cambioCripto}
+                            pagoServicio={item.pagoServicio}
+                            movimientoCaja={item.movimientoCaja}
                             onClick={
                                 item.transferencia ? () => setDetalleActivo(item.transferencia)
                                     : item.plazoFijoEvento ? () => navigate('/plazos-fijos')
-                                        : undefined
+                                        : item.pagoServicio ? () => navigate('/servicios')
+                                            : item.movimientoCaja ? () => navigate('/cajas-ahorro')
+                                                : undefined
                             }
                         />
                     ))}

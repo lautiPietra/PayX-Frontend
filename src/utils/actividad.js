@@ -1,8 +1,11 @@
 // Arma un feed de actividad combinando transferencias, eventos de plazo fijo
-// (alta y, si ya vencio, acreditacion) y operaciones de compra/venta de dolares y
-// de cripto, ordenado por fecha mas reciente primero. Se usa tanto en Home
+// (alta y, si ya vencio, acreditacion), operaciones de compra/venta de dolares y
+// de cripto, pagos de servicios y movimientos de cajas de ahorro (alta, deposito,
+// retiro), ordenado por fecha mas reciente primero. Se usa tanto en Home
 // (resumen) como en Movimientos (listado completo) para no duplicar esta logica.
-export function construirActividades(transferencias, plazosFijos, cambiosDolares = [], cambiosCripto = []) {
+// "facturas" es el historial completo de facturas del usuario: aca se filtran solo las
+// PAGADAS (una pendiente todavia no es un movimiento de plata).
+export function construirActividades(transferencias, plazosFijos, cambiosDolares = [], cambiosCripto = [], facturas = [], movimientosCajas = []) {
     const items = [];
 
     for (const t of transferencias) {
@@ -25,6 +28,16 @@ export function construirActividades(transferencias, plazosFijos, cambiosDolares
 
     for (const c of cambiosCripto) {
         items.push({ key: `cc-${c.id}`, fecha: c.fecha, cambioCripto: c });
+    }
+
+    for (const f of facturas) {
+        if (f.estado === 'PAGADA' && f.fechaPago) {
+            items.push({ key: `sv-${f.id}`, fecha: f.fechaPago, pagoServicio: f });
+        }
+    }
+
+    for (const m of movimientosCajas) {
+        items.push({ key: `cj-${m.id}`, fecha: m.fecha, movimientoCaja: m });
     }
 
     items.sort((a, b) => instanteDe(b.fecha) - instanteDe(a.fecha));
@@ -69,6 +82,8 @@ export const TIPOS_ACTIVIDAD = [
     { id: 'plazos-fijos', label: 'Plazos fijos' },
     { id: 'dolares', label: 'Dólares' },
     { id: 'cripto', label: 'Cripto' },
+    { id: 'servicios', label: 'Servicios' },
+    { id: 'cajas', label: 'Cajas de ahorro' },
 ];
 
 export function tipoDe(item) {
@@ -76,6 +91,8 @@ export function tipoDe(item) {
     if (item.plazoFijoEvento) return 'plazos-fijos';
     if (item.cambioDolares) return 'dolares';
     if (item.cambioCripto) return 'cripto';
+    if (item.pagoServicio) return 'servicios';
+    if (item.movimientoCaja) return 'cajas';
     return null;
 }
 

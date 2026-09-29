@@ -12,6 +12,22 @@ axios.interceptors.request.use((config) => {
     return config;
 });
 
+// Nombre del header tal cual lo expone el backend (JwtFilter.HEADER_TOKEN_RENOVADO); axios entrega
+// los headers de respuesta en minuscula sin importar como los mando el servidor.
+const HEADER_TOKEN_RENOVADO = 'x-renewed-token';
+
+// Sesion deslizante: si al token que mandamos le quedaba poco tiempo, el backend contesta con uno
+// nuevo en este header (ver JwtFilter). Lo guardamos sin que el usuario note nada: mientras siga
+// activo (mandando pedidos) la sesion se va renovando sola. Si deja de usar la app, no hay mas
+// respuestas que traigan un token nuevo y la sesion vence sola a las 2hs, como corresponde.
+export const guardarTokenRenovado = (response) => {
+    const tokenRenovado = response?.headers?.[HEADER_TOKEN_RENOVADO];
+    if (tokenRenovado) {
+        localStorage.setItem('token', tokenRenovado);
+    }
+    return response;
+};
+
 // Si recibimos 401 (token expirado), cerramos sesion. Separada del .use() de abajo (en vez de
 // una funcion anonima inline) para poder testearla sola, sin pelear con los internos de axios.
 export const manejarRespuestaConError = (error) => {
@@ -28,7 +44,7 @@ export const manejarRespuestaConError = (error) => {
     return Promise.reject(error);
 };
 
-axios.interceptors.response.use((response) => response, manejarRespuestaConError);
+axios.interceptors.response.use(guardarTokenRenovado, manejarRespuestaConError);
 
 export const registrarUsuario = async (datos) => {
     const response = await axios.post(`${API_URL}/register`, datos);

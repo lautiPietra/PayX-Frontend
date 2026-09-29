@@ -31,6 +31,13 @@ export const eliminarCajaAhorro = async (id) => {
     await axios.delete(`${API_URL}/${id}`);
 };
 
+// Historial de movimientos de las cajas (alta, deposito, retiro), mas recientes primero, para "Ultimas
+// actividades" y "Mis movimientos": [{ id, tipo: 'ALTA'|'DEPOSITO'|'RETIRO', cajaNombre, monto (null en el alta), fecha }].
+export const listarMovimientosCajas = async () => {
+    const response = await axios.get(`${API_URL}/movimientos`);
+    return response.data;
+};
+
 // Cuantas cajas de ahorro puede tener cada usuario (lo define el admin desde el panel): { maxPorUsuario }.
 export const obtenerLimiteCajas = async () => {
     const response = await axios.get(`${API_URL}/limite`);

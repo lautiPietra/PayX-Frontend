@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { logout, manejarRespuestaConError } from './authService';
+import { logout, manejarRespuestaConError, guardarTokenRenovado } from './authService';
 import { CLAVE_CHAT_MENSAJES, CLAVE_CHAT_ABIERTO, CLAVE_CHAT_ACCION_PENDIENTE } from '../utils/asistenteStorage';
 
 // Deja la sesion Y la charla del asistente como si el usuario ya hubiera usado la app un rato.
@@ -80,5 +80,36 @@ describe('manejarRespuestaConError (interceptor de 401)', () => {
         const errorOriginal = { response: { status: 500 }, message: 'boom' };
 
         await expect(manejarRespuestaConError(errorOriginal)).rejects.toBe(errorOriginal);
+    });
+});
+
+describe('guardarTokenRenovado (sesion deslizante)', () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it('si la respuesta trae el header del token renovado, reemplaza el token guardado', () => {
+        localStorage.setItem('token', 'token-viejo');
+        const respuesta = { headers: { 'x-renewed-token': 'token-nuevo' } };
+
+        const resultado = guardarTokenRenovado(respuesta);
+
+        expect(localStorage.getItem('token')).toBe('token-nuevo');
+        expect(resultado).toBe(respuesta);
+    });
+
+    it('sin el header, deja el token guardado tal como estaba', () => {
+        localStorage.setItem('token', 'token-viejo');
+
+        guardarTokenRenovado({ headers: {} });
+
+        expect(localStorage.getItem('token')).toBe('token-viejo');
+    });
+
+    it('no rompe si la respuesta no trae headers', () => {
+        localStorage.setItem('token', 'token-viejo');
+
+        expect(() => guardarTokenRenovado({})).not.toThrow();
+        expect(localStorage.getItem('token')).toBe('token-viejo');
     });
 });

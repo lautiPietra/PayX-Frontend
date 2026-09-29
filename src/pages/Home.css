@@ -452,14 +452,42 @@
     flex-shrink: 0;
 }
 
-.home-actividad-icono.positivo {
-    background-color: #d1fae5;
-    color: #059669;
+/* Color del icono segun el TIPO de operacion (no el signo del monto, que se resuelve
+   aparte en .home-actividad-monto): asi cada categoria se reconoce de un vistazo en
+   "Ultimas actividades" y en "Mis movimientos". */
+.home-actividad-icono.transferencia {
+    background-color: #dbeafe;
+    color: #2563eb;
 }
 
-.home-actividad-icono.negativo {
-    background-color: #f3f4f6;
-    color: #6b7280;
+.home-actividad-icono.plazo-fijo {
+    background-color: #fef3c7;
+    color: #d97706;
+}
+
+.home-actividad-icono.dolar {
+    background-color: #ccfbf1;
+    color: #0d9488;
+}
+
+.home-actividad-icono.cripto {
+    background-color: #ede9fe;
+    color: #7c3aed;
+}
+
+.home-actividad-icono.servicio {
+    background-color: #ffedd5;
+    color: #ea580c;
+}
+
+.home-actividad-icono.caja {
+    background-color: #fce7f3;
+    color: #db2777;
+}
+
+.home-actividad-icono.caja-alta {
+    background-color: #e0e7ff;
+    color: #4f46e5;
 }
 
 .home-actividad-icono.cancelada {
@@ -516,7 +544,7 @@
 }
 
 .home-actividad-monto.negativo {
-    color: #1a1a1a;
+    color: #dc2626;
 }
 
 .home-actividad-monto.cancelada {
