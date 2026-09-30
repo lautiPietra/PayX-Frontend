@@ -2,6 +2,7 @@ import { useState, useEffect, createElement } from 'react';
 import { IconX, IconArrowLeft, IconCheck } from './icons/Icons';
 import { COLORES_CAJA, ICONOS_CAJA } from '../utils/cajaAhorroTemas';
 import { crearCajaAhorro, editarCajaAhorro } from '../services/cajaAhorroService';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 import './CajaAhorroModal.css';
 
@@ -44,6 +45,13 @@ function CajaAhorroModal({ abierto, onCerrar, cajaExistente, onExito }) {
 
         if (!nombre.trim()) {
             setError('Ponele un nombre a la caja.');
+            return;
+        }
+        // La meta es opcional, pero si se escribe tiene que ser un monto valido: antes un texto que no era un
+        // numero se mandaba como null y la caja quedaba sin meta sin avisarle al usuario.
+        const meta = montoObjetivo.trim();
+        if (meta !== '' && (!(parseFloat(meta) > 0) || excedeDecimales(meta, 2))) {
+            setError('La meta tiene que ser un monto mayor a cero, con hasta 2 decimales.');
             return;
         }
 

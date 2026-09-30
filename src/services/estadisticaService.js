@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/estadisticas';
+const API_URL = `${API_BASE_URL}/api/estadisticas`;
 
 // dias=0 significa "todo el tiempo" (ver EstadisticaService en el backend).
 export const obtenerEstadisticaGastos = async (dias = 30) => {

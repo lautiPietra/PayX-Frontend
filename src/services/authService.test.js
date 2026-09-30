@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { logout, manejarRespuestaConError, guardarTokenRenovado } from './authService';
+import { logout, manejarRespuestaConError, guardarTokenRenovado, agregarToken } from './authService';
+import { API_BASE_URL } from '../config';
 import { CLAVE_CHAT_MENSAJES, CLAVE_CHAT_ABIERTO, CLAVE_CHAT_ACCION_PENDIENTE } from '../utils/asistenteStorage';
 
 // Deja la sesion Y la charla del asistente como si el usuario ya hubiera usado la app un rato.
@@ -111,5 +112,42 @@ describe('guardarTokenRenovado (sesion deslizante)', () => {
 
         expect(() => guardarTokenRenovado({})).not.toThrow();
         expect(localStorage.getItem('token')).toBe('token-viejo');
+    });
+});
+
+describe('agregarToken (interceptor de pedidos)', () => {
+    beforeEach(() => {
+        localStorage.clear();
+    });
+
+    it('agrega el token a los pedidos al backend de PayX', () => {
+        localStorage.setItem('token', 'jwt-de-ana');
+
+        const config = agregarToken({ url: `${API_BASE_URL}/api/perfil`, headers: {} });
+
+        expect(config.headers.Authorization).toBe('Bearer jwt-de-ana');
+    });
+
+    it('NO le manda el token de la sesion a otras APIs', () => {
+        localStorage.setItem('token', 'jwt-de-ana');
+
+        const config = agregarToken({ url: 'https://api.otro-sitio.com/v1/datos', headers: {} });
+
+        expect(config.headers.Authorization).toBeUndefined();
+    });
+
+    it('tampoco a un dominio que solo "empieza parecido" al del backend', () => {
+        // "http://localhost:8080.evil.com" empieza con "http://localhost:8080" pero es otro sitio.
+        localStorage.setItem('token', 'jwt-de-ana');
+
+        const config = agregarToken({ url: `${API_BASE_URL}.evil.com/robar`, headers: {} });
+
+        expect(config.headers.Authorization).toBeUndefined();
+    });
+
+    it('sin sesion no agrega nada', () => {
+        const config = agregarToken({ url: `${API_BASE_URL}/api/auth/login`, headers: {} });
+
+        expect(config.headers.Authorization).toBeUndefined();
     });
 });

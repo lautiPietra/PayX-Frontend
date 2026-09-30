@@ -113,6 +113,8 @@ function Perfil() {
         if (!formInfo.nombreUsuario.trim()) e.nombreUsuario = 'Obligatorio';
         else if (formInfo.nombreUsuario.length < 3 || formInfo.nombreUsuario.length > 20)
             e.nombreUsuario = 'Entre 3 y 20 caracteres';
+        else if (!/^[a-zA-Z0-9._-]+$/.test(formInfo.nombreUsuario))
+            e.nombreUsuario = 'Solo letras, numeros, puntos, guiones y guiones bajos';
 
         if (!formInfo.alias.trim()) e.alias = 'Obligatorio';
         else if (!/^[a-zA-Z0-9._-]{6,30}$/.test(formInfo.alias))

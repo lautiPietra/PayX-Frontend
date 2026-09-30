@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import Navbar from "../components/Navbar";
 import { IconArrowLeft, IconCheck } from "../components/icons/Icons";
 import "./AltaPlantilla.css";
@@ -48,7 +49,7 @@ function AltaPlantilla() {
         setCargando(true);
         try {
             const token = localStorage.getItem("token");
-            await axios.post("http://localhost:8080/api/plantillas", form, {
+            await axios.post(`${API_BASE_URL}/api/plantillas`, form, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setExito("Plantilla creada correctamente.");

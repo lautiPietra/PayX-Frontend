@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/cambio-dolares';
+const API_URL = `${API_BASE_URL}/api/cambio-dolares`;
 
 // Compra o vende dolares al instante. datos: { tipo: 'COMPRA' | 'VENTA', monto }
 // Si tipo=COMPRA, monto son los pesos a destinar; si tipo=VENTA, son los dolares a vender.

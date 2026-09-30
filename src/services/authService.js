@@ -1,16 +1,23 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 import { limpiarConversacionAsistente } from '../utils/asistenteStorage';
 
-const API_URL = 'http://localhost:8080/api/auth';
+const API_URL = `${API_BASE_URL}/api/auth`;
 
-// Interceptor: agrega el token JWT automaticamente a cada peticion
-axios.interceptors.request.use((config) => {
+// Agrega el token JWT a cada peticion AL BACKEND DE PAYX. Antes lo agregaba a cualquier pedido hecho con axios:
+// el dia que alguna pantalla le pegara con axios a otra API (una de cotizaciones, un CDN), le estaria mandando
+// la sesion del usuario a un tercero. Separada del .use() de abajo para poder testearla sola.
+export const agregarToken = (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && esPedidoAlBackend(config.url)) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
-});
+};
+
+const esPedidoAlBackend = (url = '') => url.startsWith(`${API_BASE_URL}/`) || url.startsWith('/api/');
+
+axios.interceptors.request.use(agregarToken);
 
 // Nombre del header tal cual lo expone el backend (JwtFilter.HEADER_TOKEN_RENOVADO); axios entrega
 // los headers de respuesta en minuscula sin importar como los mando el servidor.
@@ -31,6 +38,17 @@ export const guardarTokenRenovado = (response) => {
 // Si recibimos 401 (token expirado), cerramos sesion. Separada del .use() de abajo (en vez de
 // una funcion anonima inline) para poder testearla sola, sin pelear con los internos de axios.
 export const manejarRespuestaConError = (error) => {
+    // Un @Valid que falla en el backend responde {"error":"Datos invalidos","campos":{"monto":"El monto tiene mas
+    // decimales..."}}. Todas las pantallas muestran data.error: sin esto el usuario leia solo "Datos invalidos",
+    // sin saber que corregir. Se reemplaza por el mensaje del primer campo con problemas.
+    const campos = error.response?.data?.campos;
+    if (campos && typeof campos === 'object') {
+        const primero = Object.values(campos).find(Boolean);
+        if (primero) {
+            error.response.data.error = primero;
+        }
+    }
+
     if (error.response?.status === 401) {
         localStorage.removeItem('token');
         localStorage.removeItem('usuario');

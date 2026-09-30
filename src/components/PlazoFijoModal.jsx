@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconCheck, IconWallet, IconChevronDown, IconCalendar, IconPercent, IconFileText } from './icons/Icons';
 import { obtenerTasasPlazoFijo, crearPlazoFijo } from '../services/plazoFijoService';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 import './PlazoFijoModal.css';
 
@@ -80,7 +81,7 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible, onExito, onVerMisP
     }
 
     function usarTodoElSaldo() {
-        setMonto(String(saldoDisponible));
+        setMonto(Number(saldoDisponible).toFixed(2).replace(/\.?0+$/, ''));
         setError('');
     }
 
@@ -94,6 +95,10 @@ function PlazoFijoModal({ abierto, onCerrar, saldoDisponible, onExito, onVerMisP
         }
         if (montoNumero <= 0) {
             setError('Ingresá un monto válido.');
+            return;
+        }
+        if (excedeDecimales(monto, 2)) {
+            setError('El monto puede tener hasta 2 decimales.');
             return;
         }
         if (montoNumero < montoMinimo) {

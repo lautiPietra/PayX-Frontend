@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/asistente';
+const API_URL = `${API_BASE_URL}/api/asistente`;
 
 // Le manda un mensaje al asistente junto con la conversacion hasta ahora (el backend no la
 // guarda: se manda completa en cada pedido). historial: [{ rol: 'USUARIO'|'ASISTENTE', texto }].

@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/transferencias';
+const API_URL = `${API_BASE_URL}/api/transferencias`;
 
 // Crea una transferencia. datos: { destinatario, moneda, monto, concepto, tipo }
 // tipo: 'DIRECTA' (mueve la plata al instante) o 'PENDIENTE' (queda a la espera de confirmacion).

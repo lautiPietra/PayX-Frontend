@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import Navbar from "../components/Navbar";
 import { IconArrowLeft, IconSearch, IconPlus, IconEdit, IconTrash } from "../components/icons/Icons";
 import "./ListadoPlantillas.css";
@@ -26,7 +27,7 @@ function ListadoPlantillas() {
         setError("");
         try {
             const token = localStorage.getItem("token");
-            const res = await axios.get("http://localhost:8080/api/plantillas", {
+            const res = await axios.get(`${API_BASE_URL}/api/plantillas`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setPlantillas(res.data);

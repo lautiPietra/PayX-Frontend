@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import Navbar from "../components/Navbar";
 import { IconArrowLeft, IconCheck, IconLock, IconAlertTriangle } from "../components/icons/Icons";
 import "./EditarPlantilla.css";
@@ -28,7 +29,7 @@ function EditarPlantilla() {
         async function cargarPlantilla() {
             try {
                 const token = localStorage.getItem("token");
-                const res = await axios.get(`http://localhost:8080/api/plantillas/${id}`, {
+                const res = await axios.get(`${API_BASE_URL}/api/plantillas/${id}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const p = res.data;
@@ -67,7 +68,7 @@ function EditarPlantilla() {
         setCargando(true);
         try {
             const token = localStorage.getItem("token");
-            await axios.put(`http://localhost:8080/api/plantillas/${id}`, form, {
+            await axios.put(`${API_BASE_URL}/api/plantillas/${id}`, form, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setExito("Plantilla actualizada correctamente.");

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import { API_BASE_URL } from "../config";
 import Navbar from "../components/Navbar";
 import { IconArrowLeft, IconAlertTriangle } from "../components/icons/Icons";
 import "./BajaPlantilla.css";
@@ -19,7 +20,7 @@ function BajaPlantilla() {
         async function cargarPlantilla() {
             try {
                 const token = localStorage.getItem("token");
-                const res = await axios.get(`http://localhost:8080/api/plantillas/${id}`, {
+                const res = await axios.get(`${API_BASE_URL}/api/plantillas/${id}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 setPlantilla(res.data);
@@ -36,7 +37,7 @@ function BajaPlantilla() {
         setCargando(true);
         try {
             const token = localStorage.getItem("token");
-            await axios.patch(`http://localhost:8080/api/plantillas/${id}/desactivar`, {}, {
+            await axios.patch(`${API_BASE_URL}/api/plantillas/${id}/desactivar`, {}, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             navigate("/admin/plantillas");
@@ -52,7 +53,7 @@ function BajaPlantilla() {
         setCargando(true);
         try {
             const token = localStorage.getItem("token");
-            await axios.patch(`http://localhost:8080/api/plantillas/${id}/reactivar`, {}, {
+            await axios.patch(`${API_BASE_URL}/api/plantillas/${id}/reactivar`, {}, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             navigate("/admin/plantillas");

@@ -1088,3 +1088,106 @@ Sexto módulo del panel: un botón **Exportar CSV** en las pestañas **Usuarios*
 - Las pruebas contra el Postgres temporal no quedaron en el repositorio (los tests unitarios sí).
 
 ---
+
+## 2026-09-29
+
+### Sesiones anteriores sin registrar (resumen)
+
+Entre el 25 y el 29/09 se hizo, sin entrada propia en este registro: paginado de **Mis movimientos** (30 por página), colores por tipo de operación y montos rojo/verde en la actividad, **sesión que vence y se renueva sola** (401 real en vez de 403 en blanco, header `X-Renewed-Token` cuando al token le quedan menos de 30 min, `GlobalExceptionHandler`), negritas del asistente de IA, key opcional de CoinGecko, animación de precios (color sostenido 2,5 s con transición), y la **rotación de las tres credenciales que estaban en texto plano** en `application.properties` (JWT, contraseña de Supabase y key SMTP de Brevo; hoy todas por variable de entorno).
+
+### Auditoría completa pre-producción (backend + frontend)
+
+Pedido: buscar bugs y formas de romper la app antes de publicarla — plata, sesión, horarios, claves, APIs externas, Brevo en producción, y las combinaciones de registro común / Google con el mismo email.
+
+**Cómo se revisó:** lectura de todo el backend (controllers, servicios, filtros, DTOs) y del frontend (servicios, formularios de plata, rutas), el **esquema real de la base** (constraints, índices, tipos y datos, con una conexión de solo lectura), pruebas en vivo contra un backend levantado en el puerto 8090 con la base real (solo pedidos de lectura o que fallan a propósito), mutación de los arreglos clave, y la suite completa en **3 husos** (Argentina, UTC y Tokio).
+
+#### Backend — plata (críticos)
+
+| Hallazgo | Arreglo |
+|---|---|
+| **Comprar y vender dólares daba plata gratis.** Lo que recibía el usuario se redondeaba `HALF_UP`: con la cotización real de hoy (compra 1495 / venta 1545), comprar con $ 7,73 daba US$ 0,01 (medio centavo redondeado a uno) y venderlo devolvía $ 14,95: **~$ 7 por cada ida y vuelta, sin límite.** Había un test que *afirmaba* ese comportamiento como correcto. | `RoundingMode.DOWN` en lo que se recibe (compra y venta), igual que cripto. Además una cotización con compra > venta se descarta como inválida (invertidas, daban ganancia garantizada). Test que prueba **todos los montos de $ 1 a $ 200 de a centavo** y montos grandes: ninguna ida y vuelta devuelve más de lo que se puso. |
+| **Comprar cripto con $ 0,005 daba cripto gratis:** el DTO acepta 8 decimales (porque en la venta el monto es cripto) y el saldo en pesos es `numeric(15,2)`: 100,00 − 0,005 se guardaba 100,00. | Se rechazan pesos con más de 2 decimales en la compra ([Decimales](../PayX-backend/src/main/java/com/payx/backend/util/Decimales.java)). |
+| **Transferir $ 0,005 creaba plata** (el hallazgo del 24/09, que había quedado sin arreglar): el emisor no perdía nada y el receptor ganaba $ 0,01. | Pesos y dólares con más de 2 decimales se rechazan antes de tocar nada; cripto sigue aceptando 8. |
+
+#### Backend — seguridad
+
+| Hallazgo | Arreglo |
+|---|---|
+| **Cambiar o resetear la contraseña no cerraba ninguna sesión**, y con la renovación automática un token robado se podía estirar **para siempre**. (Corrige lo afirmado en la sesión anterior: la sesión deslizante tenía este agujero.) | El JWT lleva una **huella de la contraseña** (claim `pv`: 16 hex del SHA-256 del hash BCrypt, no revela nada). El filtro la compara con la contraseña actual: si cambió, 401. La sesión que hizo el cambio recibe un token nuevo por `X-Renewed-Token` y no se desloguea. **Los tokens emitidos antes de este cambio dejan de valer: todos vuelven a iniciar sesión una vez.** |
+| **Robo de cuenta "pre-registro" con Google:** alguien se registraba con el email de otra persona y una contraseña suya (sin poder verificarlo); cuando el dueño entraba con Google la cuenta quedaba verificada… y el atacante también entraba con su contraseña. | Al entrar con Google sobre una cuenta **nunca verificada**, esa contraseña se borra. |
+| **Códigos de 6 dígitos sin tope por código:** el límite era solo por IP; con muchas IPs se podían probar códigos sin freno. | **5 intentos fallidos por código** (sumando validar y resetear, vengan de donde vengan); después el código queda inutilizable aunque se acierte, y hay que pedir otro (que le llega por mail al dueño). |
+| **Phishing desde el remitente de PayX:** el nombre del usuario iba sin escapar en el HTML del mail; cualquiera podía registrarse con el email de una víctima y un "nombre" con links. | Se escapa (`HtmlUtils.htmlEscape`, sin tocar tildes ni eñes). |
+| **Errores internos llegaban crudos al usuario:** los 76 `catch` de los controllers devolvían `e.getMessage()` de cualquier excepción (el SQL y la constraint de un registro simultáneo, el host y puerto de un SMTP caído). | [MensajeError](../PayX-backend/src/main/java/com/payx/backend/exception/MensajeError.java): los errores de negocio se muestran tal cual; cualquier otro, mensaje genérico **y al log** (antes no quedaba en ningún lado). Los fallos de SMTP (`MailException`) tienen su mensaje propio. |
+| La verificación del token de Google no tenía timeout (un Google colgado dejaba colgado el hilo del login). | [GoogleTokenClient](../PayX-backend/src/main/java/com/payx/backend/client/GoogleTokenClientImpl.java) con timeouts de 5/10 s (y testeable sin pegarle a Google). |
+
+#### Backend — producción y robustez
+
+- **CORS fijo a `localhost`:** publicado el frontend, el navegador bloqueaba todo. Ahora `CORS_ALLOWED_ORIGINS` (acepta varias, tolera espacios y barra final).
+- **Rate limit detrás de un proxy = un solo límite para todos:** en Render/Railway todas las conexiones llegan desde la IP del proxy (10 logins por minuto *para toda la app*). `server.forward-headers-strategy=native`: la IP real sale de `X-Forwarded-For` **solo** si la conexión viene de una IP interna (no se puede falsificar desde afuera). El mapa del límite ahora se limpia cada 5 min (crecía para siempre) y se limitó `POST /api/notificaciones/registro-login`.
+- **Puerto por `PORT`** (los hostings lo asignan) y **SMTP por `MAIL_PORT`** (2525 si el hosting bloquea el 587).
+- **Mi `GlobalExceptionHandler` de la sesión anterior convertía errores 4xx en 500** (corrección de lo afirmado entonces): ruta inexistente, método equivocado, UUID mal formado, parámetro faltante, foto > 5 MB, JSON inválido. Ahora 404/405/400/400/413/400 con mensaje, y los 500 quedan en el log.
+- **Cuentas duplicables:** `cuentas.usuario_id` no tenía UNIQUE y la cuenta se crea "si no tiene" desde 4 lugares: dos pedidos simultáneos dejaban a un usuario con dos cuentas y roto para siempre. `crearCuentaParaUsuario` ahora es idempotente (`INSERT … ON CONFLICT DO NOTHING` + relectura, mismo patrón que la tarjeta) y el SQL nuevo agrega la restricción.
+- **Google sobre una cuenta sin verificar** la verificaba pero no le creaba la cuenta (perfil y transferencias fallaban). **Resetear la contraseña** de una cuenta sin verificar no la verificaba (reseteaba y seguía sin poder entrar). Arreglados los dos: el código llegó a su casilla, prueba que el email es suyo.
+- **"Juan" y "juan" podían coexistir** (nombre de usuario y alias), pero las transferencias a `@usuario`/alias los buscan ignorando mayúsculas → con dos, toda transferencia a ese nombre fallaba. Unicidad sin mayúsculas en registro, perfil y alta con Google; nombre de usuario solo con letras, números, `.`, `_` y `-`.
+- **Alias generados inválidos:** con nombres largos pasaban de 30 caracteres y con nombres sin letras latinas quedaba `.payx`: en los dos casos no se podía guardar *nada* desde Editar perfil (valida el alias). Ahora se recortan, se sacan tildes de cualquier idioma (`João` → `joao`) y hay un valor por defecto.
+- **Mensajes claros para cuentas de Google:** login común o "cambiar contraseña" en una cuenta sin contraseña ahora explican que se entra con Google o se crea una desde "Olvidé mi contraseña" (antes: "Credenciales invalidas" / "La contraseña actual es incorrecta").
+- `GET /api/estadisticas/gastos?dias=2000000000` daba 500 (fecha fuera del rango de Postgres): se acota a 10 años. El tope de cajas de ahorro se podía pasar con doble clic: se bloquea la cuenta antes de contar.
+
+#### Frontend
+
+- **La URL del backend estaba escrita a mano en 22 lugares** (`http://localhost:8080`): en producción cada navegador le pegaba a su propia máquina. Ahora `VITE_API_URL` ([config.js](src/config.js), [.env.example](.env.example)); sin definirla sigue usando el backend local.
+- **El token se mandaba a cualquier URL** pedida con axios: ahora solo al backend de PayX (incluido el caso `localhost:8080.evil.com`).
+- **"Datos invalidos" sin detalle:** el interceptor muestra el mensaje del campo que falló (ej. "El monto tiene mas decimales…").
+- **Validación de decimales** en los 6 formularios de plata (transferir, dólares, cripto, plazo fijo, depositar/retirar de caja, meta de caja), la vista previa del dólar trunca igual que el backend (antes podía prometer US$ 6,54 y acreditar 6,53), "Usar todo el saldo" ya no escribe `1e-7` con saldos cripto chicos, y una meta de caja no numérica ya no se descarta en silencio.
+- **Pantalla en blanco ante cualquier error de render:** [ErrorBoundary](src/components/ErrorBoundary.jsx) global con "Recargar" / "Ir al inicio".
+- `lang="en"` → `lang="es"` (Chrome ofrecía traducir la página del inglés). Reescritura de rutas para el hosting ([vercel.json](vercel.json), [public/_redirects](public/_redirects)): sin eso, recargar `/movimientos` daba 404. `.env` fuera de git. El error de lint de `Home.jsx` (que rompería un CI) quedó resuelto sin cambiar el comportamiento.
+
+#### Registro / login con el mismo email (cubierto por tests)
+
+| Escenario | Resultado |
+|---|---|
+| Registro común verificado → entra con Google | Misma cuenta; conserva su contraseña (puede usar los dos). |
+| Registro común **sin verificar** → entra con Google | Queda verificada, **se borra la contraseña** que puso quien se registró, se crea la cuenta. |
+| Alta con Google → login común | "Esta cuenta se creó con Google: ingresá con el botón de Google, o creá una contraseña desde 'Olvidé mi contraseña'". |
+| Alta con Google → "Olvidé mi contraseña" | Crea su primera contraseña; desde ahí entra de las dos formas. Las sesiones abiertas se cierran. |
+| Alta con Google → intenta registrarse con el mismo email | "El email ya está registrado". |
+| Email con mayúsculas o espacios (`  Ana@Gmail.COM `) | Misma cuenta en registro, login y Google. |
+| Cuenta desactivada | Rechazada en login común y en Google (y sus tokens dejan de valer). |
+| Google con email no verificado por Google | Rechazado. |
+
+#### Revisado y sin cambios
+
+- **Claves:** ninguna en archivos versionados de ningún repo (`application.properties` solo tiene `${VARIABLES}`; `google.client-id`, `cloudinary.cloud-name` y `api-key` no son secretos). `.idea/` (donde está la configuración de IntelliJ con las claves) está ignorado. Las que quedaron en el historial de git ya se rotaron.
+- **APIs externas, probadas en vivo con las claves actuales:** dolarapi (compra 1495 / venta 1545), CoinGecko con key, Anthropic (key válida y el modelo `claude-haiku-4-5-20251001` disponible), Cloudinary (plan Free), Google tokeninfo, y SMTP de Brevo alcanzable en 587 y 2525.
+- **Horarios:** el backend ya usaba el reloj de Argentina para "qué día es" y los rangos; la suite pasa igual en UTC y en Tokio. El frontend no recorta instantes como texto.
+- Bloqueos de filas en todos los movimientos de plata, notificaciones fuera de la transacción crítica, sin `dangerouslySetInnerHTML`.
+
+#### Brevo en producción
+
+**Funciona** (el mail de prueba del 29/09 llegó, y el SMTP responde), pero el remitente es `lautipietra@gmail.com` enviado por los servidores de Brevo: el SPF de gmail.com no incluye a Brevo y la firma DKIM es de Brevo, así que el mail **no pasa DMARC alineado**. Hoy gmail.com tiene `p=none` (no lo rechaza), pero para otros destinatarios aumenta mucho la chance de **spam**. Para producción conviene un **dominio propio autenticado en Brevo** (SPF + DKIM + DMARC). Otros límites: plan gratis de 300 mails por día; algunos hostings gratuitos bloquean el SMTP de salida (si pasa con el 587, probar `MAIL_PORT=2525`; si bloquean todo el SMTP habría que pasar a la API HTTP de Brevo, que usa el puerto 443).
+
+**Verificación**
+- **Backend:** la suite pasó de 552 a **622 tests, 0 fallas**, también con la JVM en **UTC y Asia/Tokyo**. Nuevos: `AuthServiceTest` (15, no había ninguno), `VerificacionServiceTest` (10, tampoco), `CuentaServiceTest` (8), `EmailServiceTest` (5), `MensajeErrorTest` (4), `JwtUtilTest` (4), `PerfilControllerTest` (2) y casos agregados a los existentes. **Mutación:** con el redondeo vuelto a `HALF_UP`, sin borrar la contraseña en el alta con Google y con el tope de intentos en 1000, fallaron 6 tests.
+- **En vivo (base real, backend en 8090):** 404/405/400/415 en vez de 500; token viejo sin huella, con huella de otra contraseña, vencido o basura → 401; token por vencer → `X-Renewed-Token`, token con 2 h → no; `?dias=2000000000` → 200; $ 0,005 en transferencia y compra de cripto → 400 con el mensaje; usuario con espacios → 400 con el campo; CORS acepta el origen configurado por variable y rechaza otro (403).
+- **SQL nuevo** ensayado contra la base real **dentro de una transacción con ROLLBACK** (no quedó nada aplicado, verificado después): crea las 7 restricciones, se puede correr dos veces, y un segundo `INSERT` de cuenta para el mismo usuario inserta 0 filas.
+- **Frontend:** 36 tests (8 nuevos: token solo al backend, decimales, ErrorBoundary), lint sin errores (el de `Home.jsx` también resuelto), y build de producción con `VITE_API_URL`: no queda ningún `localhost:8080` en el JS.
+
+#### Qué tenés que hacer vos
+
+1. **Correr en Supabase** [`PayX-backend/sql/integridad-cuentas.sql`](../PayX-backend/sql/integridad-cuentas.sql) (entero; se puede correr más de una vez). Hasta que lo corras, todo funciona igual, pero la protección contra cuentas duplicadas no es completa.
+2. **Backend en el hosting:** `DB_USERNAME`, `DB_PASSWORD`, `JWT_SECRET`, `BREVO_SMTP_PASSWORD`, `CLOUDINARY_API_SECRET` (obligatorias: sin ellas no arranca), `CORS_ALLOWED_ORIGINS` (la URL del frontend), y opcionales `ANTHROPIC_API_KEY`, `COINGECKO_API_KEY`, `MAIL_PORT`.
+3. **Frontend en el hosting:** `VITE_API_URL` con la URL pública del backend, **antes** del build.
+4. **Google Cloud Console → credenciales OAuth:** agregar la URL del frontend en "Orígenes autorizados de JavaScript"; si no, el botón de Google no funciona en producción.
+5. **Brevo:** idealmente, un dominio propio autenticado (ver arriba). Mínimo: revisar en un mail recibido ("Mostrar original") cómo salen SPF/DKIM/DMARC.
+6. Avisar que, al publicar este backend, **todos vuelven a iniciar sesión una vez** (web y app).
+
+**Límites**
+- **El diseño visual quedó sin revisar en un navegador**, y el login real con Google (el popup) no se pudo probar sin navegador: se probó con el cliente de Google simulado.
+- La carrera real "dos pedidos crean la cuenta a la vez" no se reprodujo contra Postgres: la garantía completa depende del SQL de arriba (el ensayo con rollback sí confirmó que la restricción la frena).
+- El tope de intentos de los códigos y el rate limit viven en memoria: alcanzan para **una sola instancia** del backend.
+- No se probó un envío de mail **desde** un hosting real (solo desde esta máquina).
+- El token de Google se verifica dentro de la transacción del login (ocupa una conexión de la base mientras espera a Google, hasta 10 s).
+- El bundle del frontend pesa 514 KB (142 KB comprimido); separar el panel de admin en su propio chunk sería una mejora, no un bug.
+- La app Android necesita ajustes menores para quedar alineada (ver resumen de la sesión).
+
+---

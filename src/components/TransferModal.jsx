@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconSend, IconCheck, IconWallet, IconChevronDown, IconClock, IconAlertTriangle } from './icons/Icons';
 import { crearTransferencia, resolverDestinatario } from '../services/transferenciaService';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 
 const MOTIVOS = [
@@ -109,7 +110,8 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [], pre
     }
 
     function usarTodoElSaldo() {
-        setMonto(String(saldoDisponible));
+        // toFixed y no String(): un saldo cripto chico (0,0000001) se convertia en "1e-7".
+        setMonto(Number(saldoDisponible).toFixed(decimales).replace(/\.?0+$/, ''));
         setError('');
     }
 
@@ -125,6 +127,10 @@ function TransferModal({ abierto, onCerrar, config, onExito, contactos = [], pre
         }
         if (montoNumero <= 0) {
             setError('Ingresá un monto válido.');
+            return;
+        }
+        if (excedeDecimales(monto, decimales)) {
+            setError(`El monto puede tener hasta ${decimales} decimales.`);
             return;
         }
         if (montoNumero > saldoDisponible) {

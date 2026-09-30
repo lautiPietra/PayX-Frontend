@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/tarjeta';
+const API_URL = `${API_BASE_URL}/api/tarjeta`;
 
 // Numero completo, titular, cvv y vencimiento de la tarjeta virtual del usuario
 // logueado. Se pide aparte de /api/perfil (que solo trae los ultimos 4 digitos)

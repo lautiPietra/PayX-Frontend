@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { IconX, IconArrowLeft, IconWallet } from './icons/Icons';
 import { depositarEnCajaAhorro, retirarDeCajaAhorro } from '../services/cajaAhorroService';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 
 function formatearMonto(valor) {
@@ -28,7 +29,7 @@ function MontoCajaModal({ abierto, onCerrar, caja, modo, saldoDisponible, onExit
     const montoNumero = parseFloat(monto) || 0;
 
     function usarTodoElSaldo() {
-        setMonto(String(saldoDisponible));
+        setMonto(Number(saldoDisponible).toFixed(2).replace(/\.?0+$/, ''));
         setError('');
     }
 
@@ -38,6 +39,10 @@ function MontoCajaModal({ abierto, onCerrar, caja, modo, saldoDisponible, onExit
 
         if (montoNumero <= 0) {
             setError('Ingresá un monto válido.');
+            return;
+        }
+        if (excedeDecimales(monto, 2)) {
+            setError('El monto puede tener hasta 2 decimales.');
             return;
         }
         if (montoNumero > saldoDisponible) {

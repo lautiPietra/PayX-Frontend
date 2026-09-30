@@ -3,6 +3,7 @@ import { IconX, IconArrowLeft, IconCheck, IconWallet, IconRefreshCw } from './ic
 import { obtenerCotizacionDolar } from '../services/cotizacionService';
 import { crearCambioDolares } from '../services/cambioDolaresService';
 import CotizacionTicker from './CotizacionTicker';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 import './CambioDolaresModal.css';
 
@@ -51,7 +52,12 @@ function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
 
     const precioAplicado = cotizacion ? Number(esCompra ? cotizacion.venta : cotizacion.compra) : null;
     const montoEntrada = parseFloat(monto) || 0;
-    const montoSalida = precioAplicado ? (esCompra ? montoEntrada / precioAplicado : montoEntrada * precioAplicado) : 0;
+    // Truncado a centavos (no redondeado), igual que el backend: lo que se recibe se redondea siempre hacia
+    // abajo para que comprar y vender al toque nunca de ganancia. Si aca se redondeara, el resumen podia
+    // prometer US$ 6,54 y acreditarse US$ 6,53. El 1e-9 compensa errores de punto flotante (0,29 * 100).
+    const montoSalida = precioAplicado
+        ? Math.floor((esCompra ? montoEntrada / precioAplicado : montoEntrada * precioAplicado) * 100 + 1e-9) / 100
+        : 0;
     const saldoRestante = config.saldoDisponible - montoEntrada;
 
     function resetearYCerrar() {
@@ -66,7 +72,7 @@ function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
     }
 
     function usarTodoElSaldo() {
-        setMonto(String(config.saldoDisponible));
+        setMonto(Number(config.saldoDisponible).toFixed(2).replace(/\.?0+$/, ''));
         setError('');
     }
 
@@ -80,6 +86,16 @@ function CambioDolaresModal({ abierto, onCerrar, config, onExito }) {
         }
         if (montoEntrada <= 0) {
             setError('Ingresá un monto válido.');
+            return;
+        }
+        if (excedeDecimales(monto, 2)) {
+            setError('El monto puede tener hasta 2 decimales.');
+            return;
+        }
+        if (montoSalida <= 0) {
+            setError(esCompra
+                ? 'El monto es muy bajo: no alcanza para comprar ni un centavo de dólar.'
+                : 'El monto es muy bajo para esta cotización.');
             return;
         }
         if (montoEntrada > config.saldoDisponible) {

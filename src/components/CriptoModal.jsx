@@ -3,6 +3,7 @@ import { IconX, IconArrowLeft, IconCheck, IconWallet, IconChevronDown, IconCoins
 import { obtenerCotizacionesCripto } from '../services/cotizacionCriptoService';
 import { crearOperacionCripto } from '../services/criptoService';
 import CriptoTicker from './CriptoTicker';
+import { excedeDecimales } from '../utils/montos';
 import './TransferModal.css';
 import './CriptoModal.css';
 
@@ -86,7 +87,8 @@ function CriptoModal({ abierto, onCerrar, tipo, perfil, onExito }) {
     }
 
     function usarTodoElSaldo() {
-        setMonto(String(saldoDisponibleEntrada));
+        // toFixed y no String(): un saldo cripto chico (0,0000001) se convertia en "1e-7".
+        setMonto(saldoDisponibleEntrada.toFixed(decimalesEntrada).replace(/\.?0+$/, ''));
         setError('');
     }
 
@@ -100,6 +102,11 @@ function CriptoModal({ abierto, onCerrar, tipo, perfil, onExito }) {
         }
         if (montoEntrada <= 0) {
             setError('Ingresá un monto válido.');
+            return;
+        }
+        // Al comprar se escriben PESOS (hasta 2 decimales); al vender, cripto (hasta 8).
+        if (excedeDecimales(monto, decimalesEntrada)) {
+            setError(`El monto puede tener hasta ${decimalesEntrada} decimales.`);
             return;
         }
         if (montoEntrada > saldoDisponibleEntrada) {

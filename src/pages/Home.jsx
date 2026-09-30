@@ -314,10 +314,12 @@ function Home() {
         listarPlazosFijos().then(setPlazosFijos).catch(() => {});
         listarCambiosDolares().then(setCambiosDolares).catch(() => {});
         listarOperacionesCripto().then(setCambiosCripto).catch(() => {});
-        cargarCotizacion();
-        cargarCotizacionesCripto();
-        cargarFacturas();
-        cargarMovimientosCajas();
+        // Mismo patron .then(set...) que las de arriba (y no cargarCotizacion() etc.): el linter no distingue
+        // un setState que ocurre despues de un await y marcaba la llamada como "setState sincronico en un efecto".
+        obtenerCotizacionDolar().then(setCotizacionDolar).catch(() => {});
+        obtenerCotizacionesCripto().then(setCotizacionesCripto).catch(() => {});
+        listarHistorialFacturas().then(setFacturas).catch(() => {});
+        listarMovimientosCajas().then(setMovimientosCajas).catch(() => {});
     }, []);
 
     // Polling: si otro usuario confirma o cancela una transferencia pendiente que

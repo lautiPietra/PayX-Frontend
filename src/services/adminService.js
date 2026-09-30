@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/admin';
+const API_URL = `${API_BASE_URL}/api/admin`;
 
 // Pagina de usuarios con busqueda y filtros resueltos en el backend. Los filtros
 // vacios ('') no se mandan. Devuelve { contenido, pagina, tamanio, totalElementos, totalPaginas }.

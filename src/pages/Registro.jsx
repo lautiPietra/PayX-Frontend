@@ -56,6 +56,9 @@ function Registro() {
             nuevosErrores.nombreUsuario = 'El nombre de usuario es obligatorio';
         } else if (formData.nombreUsuario.length < 3 || formData.nombreUsuario.length > 20) {
             nuevosErrores.nombreUsuario = 'Debe tener entre 3 y 20 caracteres';
+        } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.nombreUsuario)) {
+            // Mismo criterio que el backend: se usa como "@usuario" para transferir.
+            nuevosErrores.nombreUsuario = 'Solo letras, numeros, puntos, guiones y guiones bajos (sin espacios)';
         }
 
         if (!formData.dni.trim()) {

@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/notificaciones';
+const API_URL = `${API_BASE_URL}/api/notificaciones`;
 
 // Devuelve las notificaciones no leidas del usuario logueado, mas recientes primero.
 export const obtenerNotificaciones = async () => {

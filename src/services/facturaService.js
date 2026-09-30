@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/facturas';
+const API_URL = `${API_BASE_URL}/api/facturas`;
 
 export const listarServicios = async () => {
     const response = await axios.get(API_URL);

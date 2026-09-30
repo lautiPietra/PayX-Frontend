@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE_URL } from '../config';
 
-const API_URL = 'http://localhost:8080/api/plazos-fijos';
+const API_URL = `${API_BASE_URL}/api/plazos-fijos`;
 
 // Tasas disponibles por plazo, monto minimo y maximo de plazos fijos activos.
 // Viene del backend para no duplicar (y poder desincronizar) las tasas del lado del cliente.
