@@ -61,6 +61,39 @@ export const obtenerAlertas = async (horas = 24) => {
     return response.data;
 };
 
+// Marca alertas pendientes como LEIDA o ANALIZADA (nota opcional): pasan al historial. Se manda solo el id de cada
+// alerta y la ventana con la que se estaba mirando; el backend guarda SU copia de la alerta. Devuelve
+// { revisadas, noVigentes } (noVigentes = ya no estaban en la ventana cuando se las marco).
+export const revisarAlertas = async ({ horas, ids, estado, nota }) => {
+    const response = await axios.post(`${API_URL}/alertas/revisar`, { horas, ids, estado, nota: nota || null });
+    return response.data;
+};
+
+// Historial de alertas revisadas, paginado y filtrable. "desde"/"hasta" son dias (yyyy-MM-dd) de la revision.
+export const obtenerHistorialAlertas = async ({ pagina = 0, tamanio = 20, estado, severidad, regla, desde, hasta, termino, orden } = {}) => {
+    const params = { pagina, tamanio };
+    if (estado) params.estado = estado;
+    if (severidad) params.severidad = severidad;
+    if (regla) params.regla = regla;
+    if (desde) params.desde = desde;
+    if (hasta) params.hasta = hasta;
+    if (termino) params.termino = termino;
+    if (orden) params.orden = orden;
+    const response = await axios.get(`${API_URL}/alertas/historial`, { params });
+    return response.data;
+};
+
+// Cambia el estado (LEIDA / ANALIZADA) y la nota de una alerta del historial. "id" es el de su revision.
+export const cambiarRevisionAlerta = async (id, estado, nota) => {
+    const response = await axios.patch(`${API_URL}/alertas/historial/${id}`, { estado, nota: nota || null });
+    return response.data;
+};
+
+// Saca una alerta del historial: vuelve a aparecer como pendiente si sigue vigente.
+export const volverAlertaAPendiente = async (id) => {
+    await axios.delete(`${API_URL}/alertas/historial/${id}`);
+};
+
 // Ficha completa de un usuario: datos, saldos, productos, actividad, ultimas transacciones, alertas e historial de acciones de admins.
 export const obtenerFicha = async (usuarioId) => {
     const response = await axios.get(`${API_URL}/usuarios/${usuarioId}/ficha`);

@@ -343,3 +343,259 @@
     animation: none;
   }
 }
+
+/* ===== Revisar alertas (leida / analizada) e historial ===== */
+.admin-alertas-vistas {
+  margin-bottom: 18px;
+}
+
+.admin-alertas-estados {
+  margin-bottom: 14px;
+}
+
+.admin-alertas-revisadas {
+  margin: 0 0 14px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.admin-alertas-revisadas button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: #ff6b1a;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.admin-alertas-revisadas button:hover {
+  text-decoration: underline;
+}
+
+.admin-alertas-masivo {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: #4b5563;
+}
+
+.admin-alertas-masivo button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background-color: #ffffff;
+  color: #4b5563;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.admin-alertas-masivo button:hover:not(:disabled) {
+  background-color: #f3f4f6;
+}
+
+.admin-alertas-masivo button.primario {
+  border-color: #ff6b1a;
+  background-color: #ff6b1a;
+  color: #ffffff;
+}
+
+.admin-alertas-masivo button.primario:hover:not(:disabled) {
+  background-color: #e85d10;
+}
+
+.admin-alertas-masivo button:disabled,
+.admin-alerta-acciones button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-alertas-fecha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.admin-alertas-fecha input {
+  padding: 8px 10px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.admin-alertas-fecha input:focus {
+  border-color: #ff6b1a;
+}
+
+.admin-alerta-revisar {
+  margin-bottom: 10px;
+}
+
+.admin-alerta-acciones {
+  align-items: center;
+}
+
+.admin-alerta-acciones button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.admin-alerta-revisar .admin-alerta-acciones {
+  margin-bottom: 0;
+}
+
+.admin-alerta-confirmar-texto {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.admin-alerta-error {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: #dc2626;
+}
+
+/* ----- Info de la revision (estado, quien, cuando, nota) ----- */
+.admin-alerta-revision {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background-color: #f9fafb;
+}
+
+.admin-alerta-estado {
+  padding: 2px 10px;
+  border-radius: 20px;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.admin-alerta-estado.leida {
+  background-color: #e0e7ff;
+  color: #3730a3;
+}
+
+.admin-alerta-estado.analizada {
+  background-color: #dcfce7;
+  color: #166534;
+}
+
+.admin-alerta-revision-quien {
+  font-size: 12.5px;
+  color: #6b7280;
+}
+
+.admin-alerta-nota {
+  flex-basis: 100%;
+  margin: 2px 0 0;
+  font-size: 13px;
+  font-style: italic;
+  color: #374151;
+  overflow-wrap: anywhere;
+}
+
+/* ----- Editor de la nota ----- */
+.admin-alerta-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background-color: #f9fafb;
+}
+
+.admin-alerta-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.admin-alerta-editor textarea {
+  padding: 9px 11px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 9px;
+  background-color: #ffffff;
+  color: #1a1a1a;
+  font-size: 13.5px;
+  font-family: inherit;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.admin-alerta-editor textarea:focus {
+  border-color: #ff6b1a;
+}
+
+.admin-alerta-editor-pie {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.admin-alerta-editor-contador {
+  margin-right: auto;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.admin-alerta-editor-pie button {
+  padding: 7px 13px;
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  background-color: #ffffff;
+  color: #4b5563;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.admin-alerta-editor-pie button.primario {
+  border-color: #ff6b1a;
+  background-color: #ff6b1a;
+  color: #ffffff;
+}
+
+.admin-alerta-editor-pie button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .admin-alertas-fecha {
+    flex: 1 1 100%;
+  }
+
+  .admin-alertas-fecha input {
+    flex: 1;
+  }
+}

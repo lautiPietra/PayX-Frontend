@@ -1191,3 +1191,35 @@ Pedido: buscar bugs y formas de romper la app antes de publicarla — plata, ses
 - La app Android necesita ajustes menores para quedar alineada (ver resumen de la sesión).
 
 ---
+
+### Panel de admin: alertas leídas / analizadas e historial
+
+En la pestaña **Alertas** ahora cada alerta se puede marcar como **leída** (un clic) o **analizada** (con una nota opcional de hasta 500 caracteres). Las marcadas salen de la lista de pendientes —y de los contadores— y pasan a una vista **Historial**, con buscador, filtros y paginación. **Hace falta correr un SQL nuevo** ([`PayX-backend/sql/alertas-revisadas.sql`](../PayX-backend/sql/alertas-revisadas.sql), se puede correr más de una vez). Hasta que lo corras todo anda como antes: las alertas salen todas pendientes, no se muestran los botones y el panel explica qué falta.
+
+**Cómo funciona (y por qué así)**
+- **Las alertas siguen sin guardarse:** se calculan al vuelo con la actividad de la ventana. Lo único que se guarda es la *revisión*, en la tabla `alertas_revisadas`, **con una copia de la alerta** (título, descripción, gravedad, monto, usuario). Hace falta la copia porque la alerta original desaparece sola cuando el hecho sale de la ventana (24 h a 7 días): sin ella el historial se vaciaría solo.
+- **Una revisión vale para una *situación*, no para una cuenta.** El id de una alerta dice a qué se refiere (`RAFAGA:<cuenta>`), pero la misma cuenta puede volver a disparar la regla. Cada alerta lleva una *huella* y la revisión vale para el par (id, huella): una ráfaga **nueva** de la misma cuenta vuelve a aparecer como pendiente aunque la anterior ya esté marcada (si no, marcar una silenciaría para siempre a esa cuenta). Huella por regla: ráfaga = cuándo terminó; saldo negativo = los saldos concretos; cuenta nueva = orden de magnitud de lo transferido (vuelve si pasa a mover 10 veces más, no con cada transferencia); monto alto y nuevo administrador = una sola vez por hecho.
+- **El servidor guarda SU copia.** Al marcar, el cliente manda solo los ids y la ventana; el backend vuelve a calcular las alertas y guarda lo que calculó. Nadie puede llenar el historial con texto inventado ni marcar un id que no existe (esos se cuentan como "ya no vigentes" y no se guardan).
+- Filtros del historial (todos se combinan): estado, gravedad, tipo de alerta, fechas de revisión (días completos, en la zona de la app), texto (título, descripción, nota, y nombre/email del usuario o de quien la revisó, con `%` y `_` buscados literalmente) y orden (recientes / antiguas / por gravedad, con desempate por id para que no se repitan ni salteen filas entre páginas). Paginado de 10 a 100.
+- Desde el historial se puede **pasar una leída a analizada**, **editar la nota**, o **volver a pendiente** (pide confirmar; **borra la marca**, no queda registro de que se marcó).
+- La tabla es opcional igual que la de movimientos de cajas: `JdbcTemplate` y no entidad JPA, porque con `ddl-auto=validate` una entidad sin tabla impediría arrancar la aplicación.
+- Endpoints nuevos (todos solo admin): `POST /api/admin/alertas/revisar` (límite de 30/min), `GET /api/admin/alertas/historial`, `PATCH` y `DELETE /api/admin/alertas/historial/{id}`.
+
+**Un hueco que encontré probando mi propio diseño:** el detector informa **una sola ráfaga por cuenta** (la mayor de la ventana) y, si empataban, se quedaba con la **más vieja**: una ráfaga nueva del mismo tamaño que otra ya revisada quedaba tapada hasta 7 días. Ahora en un empate gana la **más reciente** (cambia levemente la hora que muestra una alerta de ráfaga: la de la más reciente entre las empatadas).
+
+**Verificación**
+- **Backend:** de 622 a **671 tests, 0 fallas**, también con la JVM en UTC y Tokio. Nuevos: 33 del servicio (la lista oculta lo revisado y las revisadas no ocupan lugar en el tope de 200; cada huella; sin tabla; guardar la copia del servidor; ids inventados y repetidos; validaciones; permisos; cada filtro y su normalización; paginación sin desbordar con `?pagina=2147483647`) y 16 del controller (validación del pedido, códigos 400/403/204, un error interno no filtra su detalle).
+- **SQL contra un Postgres 16 real** (descartable, ya borrado; el test temporal no quedó en el repositorio): el script corre dos veces sin error; el upsert conserva la copia y cambia estado/nota/admin; las restricciones rechazan estados y gravedades inválidos y admins inexistentes; cada filtro y 7 combinaciones coinciden con un SQL independiente (300 filas con fechas repetidas a propósito); las páginas juntas dan todas las filas sin repetir ni saltear en los 3 órdenes; un orden con texto de inyección SQL no se ejecuta; 70.000 ids en una consulta; con **50.000 filas**: página + conteo 138 ms, búsqueda de texto 178 ms, 5.000 ids 132 ms. **Mutación:** con el borde `<` del rango de fechas cambiado a `<=` y el orden por gravedad roto, el test falló.
+- **Frontend:** de 36 a **73 tests** (37 nuevos: marcar, nota, marcar todas con confirmación, error por alerta, "ya no vigente", sin tabla, cada filtro, rango invertido, paginación, volver a pendiente con confirmación). **Mutación:** sin el aviso al panel y sin el reinicio de página, fallaron. Lint sin errores y build correcto.
+- **Bug encontrado por esa mutación:** el temporizador de la búsqueda corre al montar y a los 350 ms forzaba la página 1 aunque el usuario ya hubiera pasado a la 2. En el historial está corregido (solo reinicia si el texto cambió, con test). **El monitor de transacciones tiene el mismo patrón y no lo toqué** (afecta solo a quien cambia de página en los primeros 350 ms).
+
+**Qué tenés que hacer vos:** correr `sql/alertas-revisadas.sql` en Supabase (entero). No hay variables nuevas.
+
+**Límites**
+- **El diseño visual quedó sin revisar en un navegador**, y no se probó el flujo completo por HTTP contra la base real (la tabla todavía no existe ahí): el SQL se probó en un Postgres local, el servicio con mocks y el controller con MockMvc.
+- Si una cuenta tiene dos ráfagas en la ventana, se informa la mayor: una ráfaga nueva **más chica** que otra ya revisada queda tapada hasta que la vieja salga de la ventana (máximo 7 días).
+- **La exportación a CSV de alertas y la ficha de usuario ahora traen solo las pendientes** (igual que la lista). El historial no se exporta todavía.
+- Mientras dos admins miran la misma lista, si uno marca una alerta el otro la sigue viendo hasta que actualice; si la marca igual, el backend la guarda una sola vez (queda la última revisión).
+- La app Android no tiene panel de admin, así que no requiere cambios.
+
+---

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { listarUsuarios, cambiarRol, darDeBaja, reactivarUsuario, obtenerLogs, obtenerAlertas, exportarUsuarios, exportarAuditoria, exportarAlertas } from '../services/adminService';
+import { listarUsuarios, cambiarRol, darDeBaja, reactivarUsuario, obtenerLogs, obtenerAlertas, revisarAlertas, exportarUsuarios, exportarAuditoria, exportarAlertas } from '../services/adminService';
 import { esAdmin } from '../services/authService';
 import Navbar from '../components/Navbar';
 import AdminAvatar from '../components/AdminAvatar';
@@ -201,6 +201,16 @@ function AdminPanel() {
         setPagina(0);
     }
 
+    // Marca alertas pendientes como leidas o analizadas con la ventana que se esta mirando. La lista de pendientes
+    // se recarga siempre (tambien si fallo: pudo haber cambiado por otro lado, ej. otro admin la marco antes).
+    async function revisarAlertasDelPanel(ids, estado, nota) {
+        try {
+            return await revisarAlertas({ horas: horasAlertas, ids, estado, nota });
+        } finally {
+            setRecargaAlertas((n) => n + 1);
+        }
+    }
+
     // Desde una alerta: saltar al monitor ya filtrado por ese usuario.
     function verMovimientosDe(usuario) {
         setUsuarioFiltroTransacciones({ id: usuario.id, etiqueta: usuario.nombreCompleto });
@@ -359,6 +369,8 @@ function AdminPanel() {
                         onVerMovimientos={verMovimientosDe}
                         onVerUsuario={verFicha}
                         onDarDeBaja={setModalBaja}
+                        onRevisar={revisarAlertasDelPanel}
+                        onCambioHistorial={() => setRecargaAlertas((n) => n + 1)}
                     />
                 )}
 

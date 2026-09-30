@@ -37,7 +37,10 @@ function AdminAlertaItem({ alerta, ahoraMs, children }) {
                         {ETIQUETA_SEVERIDAD[alerta.severidad] || alerta.severidad}
                     </span>
                     <h4 className="admin-alerta-titulo">{alerta.titulo}</h4>
-                    <span className="admin-alerta-hora" title={formatFecha(alerta.fecha)}>{haceCuanto(alerta.fecha, ahoraMs)}</span>
+                    {/* Una alerta del historial puede no tener fecha (la copia guardada no la traia). */}
+                    {alerta.fecha && (
+                        <span className="admin-alerta-hora" title={formatFecha(alerta.fecha)}>{haceCuanto(alerta.fecha, ahoraMs)}</span>
+                    )}
                 </div>
 
                 <p className="admin-alerta-descripcion">{alerta.descripcion}</p>
