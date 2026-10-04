@@ -11,6 +11,7 @@ import { listarHistorialFacturas } from '../services/facturaService';
 import { listarMovimientosCajas } from '../services/cajaAhorroService';
 import {
     construirActividades, filtrarPorFecha, filtrarPorTipo, contarPorTipo, TIPOS_ACTIVIDAD, aFechaLocalISO,
+    FILTROS_TRANSFERENCIA, SIN_FILTROS_TRANSFERENCIA, hayFiltrosTransferencia, filtrarTransferencias, contarTransferencias,
 } from '../utils/actividad';
 import { IconArrowLeft, IconX } from '../components/icons/Icons';
 import './Home.css';
@@ -75,14 +76,21 @@ function Movimientos() {
     const [desde, setDesde] = useState('');
     const [hasta, setHasta] = useState('');
     const [tipo, setTipo] = useState('');
+    // Direccion / estado / moneda: solo existen (y solo se aplican) mientras el tipo elegido es "transferencias".
+    const [filtrosTransf, setFiltrosTransf] = useState(SIN_FILTROS_TRANSFERENCIA);
     const [pagina, setPagina] = useState(1);
 
     const todasLasActividades = construirActividades(transferencias, plazosFijos, cambiosDolares, cambiosCripto, facturas, movimientosCajas);
-    // Los dos filtros se combinan: primero el rango de fechas y sobre eso el tipo. Los contadores de cada tipo
-    // salen del resultado por fecha, asi el numero del boton es justo lo que se ve al elegirlo.
+    // Los filtros se combinan: primero el rango de fechas, sobre eso el tipo y, si es "transferencias", sus
+    // sub-filtros. Los contadores salen del paso anterior, asi el numero de cada opcion es justo lo que se ve al
+    // elegirla.
     const actividadesEnRango = filtrarPorFecha(todasLasActividades, desde, hasta);
     const cuentasPorTipo = contarPorTipo(actividadesEnRango);
-    const actividades = filtrarPorTipo(actividadesEnRango, tipo);
+    const actividadesDelTipo = filtrarPorTipo(actividadesEnRango, tipo);
+    const filtrandoTransferencias = tipo === 'transferencias';
+    const actividades = filtrandoTransferencias ? filtrarTransferencias(actividadesDelTipo, filtrosTransf) : actividadesDelTipo;
+    const cuentasTransf = filtrandoTransferencias ? contarTransferencias(actividadesDelTipo, filtrosTransf) : null;
+    const hayFiltroTransf = filtrandoTransferencias && hayFiltrosTransferencia(filtrosTransf);
     const atajos = armarAtajos();
     const hoyISO = aFechaLocalISO(new Date());
     const hayFiltroFecha = Boolean(desde || hasta);
@@ -113,7 +121,15 @@ function Movimientos() {
     }
 
     function cambiarTipo(valor) {
+        // Volver a tocar el tipo ya elegido no debe borrar los sub-filtros; cambiar a otro tipo si (si no,
+        // quedarian aplicados sin que se vean).
+        if (valor !== tipo) setFiltrosTransf(SIN_FILTROS_TRANSFERENCIA);
         setTipo(valor);
+        setPagina(1);
+    }
+
+    function cambiarFiltroTransferencia(faceta, valor) {
+        setFiltrosTransf((actuales) => ({ ...actuales, [faceta]: valor }));
         setPagina(1);
     }
 
@@ -121,6 +137,7 @@ function Movimientos() {
         setDesde('');
         setHasta('');
         setTipo('');
+        setFiltrosTransf(SIN_FILTROS_TRANSFERENCIA);
         setPagina(1);
     }
 
@@ -245,6 +262,31 @@ function Movimientos() {
                             ))}
                         </div>
 
+                        {filtrandoTransferencias && (
+                            <div className="movimientos-subfiltros" role="group" aria-label="Filtros de transferencias">
+                                {[
+                                    { faceta: 'direccion', titulo: 'Dirección' },
+                                    { faceta: 'estado', titulo: 'Estado' },
+                                    { faceta: 'moneda', titulo: 'Moneda' },
+                                ].map(({ faceta, titulo }) => (
+                                    <label key={faceta} className="movimientos-filtros-campo">
+                                        <span>{titulo}</span>
+                                        <select
+                                            className={filtrosTransf[faceta] ? 'activo' : ''}
+                                            value={filtrosTransf[faceta]}
+                                            onChange={(e) => cambiarFiltroTransferencia(faceta, e.target.value)}
+                                        >
+                                            {FILTROS_TRANSFERENCIA[faceta].map((opcion) => (
+                                                <option key={opcion.id} value={opcion.id}>
+                                                    {opcion.label} · {cuentasTransf[faceta][opcion.id]}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </label>
+                                ))}
+                            </div>
+                        )}
+
                         <div className="movimientos-filtros-atajos" role="group" aria-label="Rango de fechas">
                             {atajos.map((a) => (
                                 <button
@@ -298,9 +340,10 @@ function Movimientos() {
                 {!cargando && todasLasActividades.length > 0 && actividades.length === 0 && !rangoInvalido && (
                     <div className="movimientos-sin-resultados">
                         <p>
-                            {tipo && hayFiltroFecha ? 'No hay movimientos de ese tipo en ese rango de fechas.'
-                                : tipo ? 'No hay movimientos de ese tipo.'
-                                    : 'No hay movimientos en ese rango de fechas.'}
+                            {hayFiltroTransf ? `No hay transferencias que coincidan con esos filtros${hayFiltroFecha ? ' en ese rango de fechas' : ''}.`
+                                : tipo && hayFiltroFecha ? 'No hay movimientos de ese tipo en ese rango de fechas.'
+                                    : tipo ? 'No hay movimientos de ese tipo.'
+                                        : 'No hay movimientos en ese rango de fechas.'}
                         </p>
                         <button className="movimientos-filtros-limpiar" onClick={limpiarFiltros}>Ver todos los movimientos</button>
                     </div>

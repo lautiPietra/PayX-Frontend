@@ -135,6 +135,77 @@
     box-shadow: 0 0 0 3px rgba(255, 107, 26, 0.12);
 }
 
+/* ---------- sub-filtros de transferencias (direccion / estado / moneda) ---------- */
+
+/* Aparece al elegir "Transferencias". Las columnas se acomodan solas: 3 en escritorio, 2 + 1 en pantallas
+   angostas, sin media query. El acento naranja a la izquierda lo ata visualmente al chip elegido. */
+.movimientos-subfiltros {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-left: 3px solid #ff6b1a;
+    border-radius: 12px;
+    background-color: #ffffff;
+    animation: movimientos-subfiltros-entrada 0.22s ease-out;
+}
+
+@keyframes movimientos-subfiltros-entrada {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .movimientos-subfiltros {
+        animation: none;
+    }
+}
+
+.movimientos-filtros-campo select {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 30px 8px 10px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    background-color: #ffffff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    color: #4b5563;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    text-overflow: ellipsis;
+    appearance: none;
+    -webkit-appearance: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.movimientos-filtros-campo select:hover {
+    border-color: #d1d5db;
+}
+
+.movimientos-filtros-campo select:focus {
+    outline: none;
+    border-color: #ff6b1a;
+    box-shadow: 0 0 0 3px rgba(255, 107, 26, 0.12);
+}
+
+/* Con un valor elegido (distinto de "Todas") se marca igual que un chip activo. */
+.movimientos-filtros-campo select.activo {
+    border-color: #1a1a1a;
+    color: #1a1a1a;
+    font-weight: 600;
+}
+
 .movimientos-filtros-limpiar {
     display: inline-flex;
     align-items: center;

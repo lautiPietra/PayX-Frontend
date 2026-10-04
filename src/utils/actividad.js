@@ -112,6 +112,76 @@ export function contarPorTipo(items) {
     return cuentas;
 }
 
+// ---------- sub-filtros de transferencias ----------
+// Cuando el tipo elegido es "transferencias" se puede afinar por direccion, estado y moneda. Los tres se
+// combinan entre si y con el rango de fechas. "" = sin filtro en esa faceta.
+
+export const MONEDAS_CRIPTO = new Set(['BTC', 'ETH', 'SOL', 'USDT', 'BNB', 'XRP']);
+
+export const FILTROS_TRANSFERENCIA = {
+    direccion: [
+        { id: '', label: 'Todas' },
+        { id: 'ENVIADA', label: 'Enviadas' },
+        { id: 'RECIBIDA', label: 'Recibidas' },
+    ],
+    estado: [
+        { id: '', label: 'Todos' },
+        { id: 'PENDIENTE', label: 'Pendientes' },
+        { id: 'COMPLETADA', label: 'Completadas' },
+        // Una cancelada no es ni pendiente ni completada: sin esta opcion solo se veria con "Todos" y los
+        // numeros de las otras dos no sumarian el total.
+        { id: 'CANCELADA', label: 'Canceladas' },
+    ],
+    moneda: [
+        { id: '', label: 'Todas' },
+        { id: 'pesos', label: 'Pesos' },
+        { id: 'dolares', label: 'Dólares' },
+        { id: 'cripto', label: 'Cripto' },
+    ],
+};
+
+export const SIN_FILTROS_TRANSFERENCIA = { direccion: '', estado: '', moneda: '' };
+
+// "PESOS" -> 'pesos', "USD" -> 'dolares', cualquier cripto (BTC, ETH...) -> 'cripto'.
+export function categoriaMoneda(moneda) {
+    if (moneda === 'PESOS') return 'pesos';
+    if (moneda === 'USD') return 'dolares';
+    if (MONEDAS_CRIPTO.has(moneda)) return 'cripto';
+    return null;
+}
+
+export function hayFiltrosTransferencia(filtros) {
+    return Boolean(filtros.direccion || filtros.estado || filtros.moneda);
+}
+
+function coincideTransferencia(t, filtros) {
+    if (filtros.direccion && t.direccion !== filtros.direccion) return false;
+    if (filtros.estado && t.estado !== filtros.estado) return false;
+    if (filtros.moneda && categoriaMoneda(t.moneda) !== filtros.moneda) return false;
+    return true;
+}
+
+// Se aplica sobre items que ya son transferencias (despues de filtrarPorTipo(..., 'transferencias')).
+export function filtrarTransferencias(items, filtros) {
+    if (!hayFiltrosTransferencia(filtros)) return items;
+    return items.filter((item) => item.transferencia && coincideTransferencia(item.transferencia, filtros));
+}
+
+// Cuantas transferencias hay en cada opcion de cada faceta, para mostrarlo en los desplegables. Cada numero
+// respeta las OTRAS dos facetas ya elegidas (no la propia): es justo lo que se veria al elegir esa opcion.
+export function contarTransferencias(items, filtros) {
+    const transferencias = items.filter((item) => item.transferencia).map((item) => item.transferencia);
+    const cuentas = {};
+    for (const [faceta, opciones] of Object.entries(FILTROS_TRANSFERENCIA)) {
+        cuentas[faceta] = {};
+        for (const opcion of opciones) {
+            const filtrosConOpcion = { ...filtros, [faceta]: opcion.id };
+            cuentas[faceta][opcion.id] = transferencias.filter((t) => coincideTransferencia(t, filtrosConOpcion)).length;
+        }
+    }
+    return cuentas;
+}
+
 // Filtra por rango de dias, ambos extremos incluidos. "" = sin limite de ese lado.
 // Si desde > hasta el resultado queda vacio (el rango no contiene ningun dia).
 export function filtrarPorFecha(items, desde, hasta) {

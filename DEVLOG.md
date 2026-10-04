@@ -1223,3 +1223,25 @@ En la pestaña **Alertas** ahora cada alerta se puede marcar como **leída** (un
 - La app Android no tiene panel de admin, así que no requiere cambios.
 
 ---
+
+## 2026-10-04
+
+### Mis movimientos: filtros de transferencias (dirección, estado y moneda)
+
+Al elegir **Transferencias** en el filtro de tipo de "Todos tus movimientos" aparece, justo debajo, un panel con **tres desplegables** (en vez de una fila de botones, para no recargar la pantalla): **Dirección** (Todas / Enviadas / Recibidas), **Estado** (Todos / Pendientes / Completadas / Canceladas) y **Moneda** (Todas / Pesos / Dólares / Cripto). Con otro tipo elegido el panel no existe.
+
+- Es **solo frontend**: el backend ya manda `direccion`, `estado` y `moneda` en cada transferencia. La lógica está en `utils/actividad.js` (`filtrarTransferencias`, `contarTransferencias`, `categoriaMoneda`) y la pantalla en `pages/Movimientos.jsx`.
+- Los tres se **combinan entre sí** y con el rango de fechas. "Cripto" agrupa BTC, ETH, SOL, USDT, BNB y XRP.
+- Cada opción muestra **cuántas transferencias trae** ("Pendientes · 2"), calculado con las OTRAS dos facetas ya elegidas (no la propia): el número es justo lo que se ve al elegirla.
+- **Agregué "Canceladas"**, que no estaba en el pedido: sin esa opción una cancelada solo se vería con "Todos" y los números de Pendientes y Completadas no sumarían el total.
+- Un desplegable con valor elegido se marca (borde oscuro, igual que un chip activo). Cada cambio vuelve a la página 1.
+- **Cambiar a otro tipo borra los sub-filtros** (si no quedarían aplicados sin verse); volver a tocar el tipo ya elegido **no** los borra. "Limpiar filtros" y "Ver todos los movimientos" los borran junto con lo demás.
+- Si la combinación no da resultados: "No hay transferencias que coincidan con esos filtros." La lista sigue actualizándose cada 5 s sin perder lo elegido.
+
+**Verificación:** de 73 a **102 tests** (29 nuevos: 10 de la lógica pura y 19 de la pantalla, sin tocar el backend). **Mutación:** con el reinicio de página quitado, el reinicio al cambiar de tipo quitado, el reinicio forzado al tocar el mismo tipo, el estado comparado contra la dirección y los contadores contando su propia faceta, falló un test en cada caso (el primer intento de la primera no se aplicó y se repitió). Lint sin errores y build correcto.
+
+**Diseño:** revisado con capturas de Edge sin ventana sobre el marcado y el CSS reales (escritorio y 360 px de ancho; en celular los tres desplegables se apilan). **No se vio dentro de la app real, con datos y sesión**, ni en Safari/Firefox ni con el desplegable nativo abierto (lo dibuja cada navegador).
+
+**Límites:** la lista de movimientos trae como máximo las 2.000 transferencias más recientes, así que los contadores cuentan solo esas. La app Android no tiene este filtro.
+
+---
