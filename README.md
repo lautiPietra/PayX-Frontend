@@ -6,8 +6,10 @@ Cliente web de PayX, una billetera virtual simulada: transferencias, dólares, c
 
 Todavía no hay una versión publicada.
 
+<!-- Agregar las capturas en docs/ y descomentar las líneas:
 ![Captura](docs/captura-1.png)
 ![Captura](docs/captura-2.png)
+-->
 
 ## Funcionalidades
 
